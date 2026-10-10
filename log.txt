@@ -1,0 +1,283 @@
+COL334 A3 — PROJECT LOG                                   (not submitted; keep at repo root, commit it)
+=====================================================================================================
+How to use
+  - One file for status, bugs, decisions and history. Update it at the end of every step and every
+    debugging session; commit it with the code it describes.
+  - Status codes:  [ ] todo   [~] in progress   [x] done   [!] blocked/failing   [-] skipped (say why)
+  - Two columns per code item: R = reference pass (Claude, reference/), S = submission pass (you, src/).
+  - IDs match SPEC.md (NET-1, TCP-15, ...) and instructions.md (Step 6.4, Phase 12, ...).
+  - Section 8 (session log) is append-only: newest entry at the bottom, never edit old entries.
+
+Sections
+  0  Snapshot (update first)          5  Requirement checklist (what is graded)
+  1  Today's one-pass plan (12 h)     6  Decisions, TA answers, open questions
+  2  Setup status                     7  Bugs and test results
+  3  Code items: R and S status       8  Session log
+  4  Milestones
+
+=====================================================================================================
+0  SNAPSHOT
+=====================================================================================================
+  Date ............ 2026-10-10
+  Current step .... you: setup.md S1-S4 (downloads, git) · Claude: reference pass done, waiting for VMs
+  Pass ............ R complete and green in Claude's sandbox (47 unit/harness tests + real-kernel tests);
+                    R on your VMs not started; S not started
+  Last green ...... 2026-10-10 reference: unit 47/47, harness 16/16, 4-namespace topology e2e all MATCH
+  Blockers ........ none (ENV-3 GRO policy pending the VM probe, Step 3.5)
+  Next 3 actions .. 1) finish setup.md S4-S7   2) run reference/netcfg on the VMs (Phase 2 checks)
+                    3) run reference client/server on the VMs (log section 1, boxes B2-B4)
+  Teammate review . not sent
+
+=====================================================================================================
+1  TODAY'S ONE-PASS PLAN (target: working reference pass in ~12 h, then teammate review)
+=====================================================================================================
+  Times are offsets from start. Claude writes reference/ code while you do setup and VM testing,
+  so the two run in parallel. If a box overruns, cut from the "slips first" list, not from tests.
+
+  Box  Time        You                                    Claude (reference pass)
+  ---  ----------  -------------------------------------  ---------------------------------------------
+  B1   0:00-2:30   setup.md S1-S7 (tools, repo, VMs)      packets/, core/, settings, harness, unit tests
+  B2   2:30-3:30   Phase 2: netcfg on VMs, R1-R3 shots    netcfg/*.sh, launchers (ENV-1/2), driver/
+  B3   3:30-5:00   Phase 3 + 8: launchers, handshake on   fixes from VM results; web/ client + server
+                   VMs, Refused/Timeout, logs valid
+  B4   5:00-6:30   Phase 10: downloads vs python server,  fixes; chunked-server.py test helper
+                   our server vs curl/wget, R4-R5 shots
+  B5   6:30-8:00   Phase 11-12: CC sawtooth, loss/reorder congestion tuning; robustness fixes
+                   (reduced grid: 5% loss + 25% reorder)
+  B6   8:00-9:00   Phase 13: interop + 1v1/3v3 fairness   fairness tuning if outside 0.6-1.6
+  B7   9:00-10:30  R6 capture; report draft R1-R6         report outline + design explanations
+  B8   10:30-11:30 package.sh dry run on fresh snapshots  final compliance check, log update
+  B9   11:30-12:00 send to teammate for review            review checklist for teammate (section 4)
+
+  Slips first (in this order): 5v5 fairness (O5), full loss grid (12.1 beyond the reduced set),
+  GRO on/off matrix (12.4), originality audit (Phase 15: do it during the submission pass), plots (O6).
+  Never slips: Part A checks, md5 MATCH tests, log format, server status rules, exit codes.
+
+=====================================================================================================
+2  SETUP STATUS (setup.md)
+=====================================================================================================
+  [x] S0 locations decided (~/developer/COL334_A3, ~/A3-VMs)
+  [ ] S1 host tools (brew: git bash python@3.10 grep gnu-sed coreutils zip; Ubuntu 22.04 arm64 ISO)
+  [x] S2 project folder on the Mac (placed by Claude, 2026-10-10)
+  [ ] S3 git init, setup-dev.sh, first commit, private remote
+  [ ] S4 VMware Fusion + 4 private networks (vmnet2-5, no host, no DHCP)
+  [ ] S5 base VM a3-base: install, open-vm-tools, /mnt/a3, install-packages, seal, snapshot base-sealed
+  [ ] S6 four linked clones, adapters per table, unique MACs, hostnames
+  [ ] S7 fresh-state check, docs/vm-map.md, snapshots "fresh", R1 adapter screenshots, isolation check
+  [ ] S9 TA questions Q1-Q10 sent (Q10 solo submission, Q9 arm64)
+  VM interface names (copy from docs/vm-map.md once known):
+    client: IF_A=____ IF_D=____   r1: IF_A=____ IF_B=____
+    r2: IF_B=____ IF_C=____ IF_D=____   server: IF_C=____
+
+=====================================================================================================
+3  CODE ITEMS — R (reference/) and S (src/)            file                           R   S   notes
+=====================================================================================================
+  Network (Phase 2, SPEC §3)
+    NET-1 argument + interface preflight              netcfg/*.sh                    [x] [ ]
+    NET-2 addresses, links up                         netcfg/*.sh                    [x] [ ]
+    NET-3 routes (r2: LAN A via r1, /32 via Link D)   netcfg/*.sh                    [x] [ ]
+    NET-4 forwarding (per-interface)                  netcfg/*.sh                    [x] [ ]
+    NET-5 rp_filter (client IF_D=2, r2 IF_B=2)        netcfg/*.sh                    [x] [ ]
+    NET-6 redirects (out of scope)                    -                              [-] [-]  by design
+    NET-7 self-check via ip route get                 netcfg/*.sh                    [x] [ ]
+  Launch environment (Phase 3, SPEC §4)
+    ENV-1 launchers (exec, "$@", -B -E -s)            client/run-client, server/..   [x] [ ]
+    ENV-2 kernel RST suppression (A3C / A3S chains)   launchers                      [x] [ ]
+    ENV-3 GRO policy (after probe)                    launchers                      [!] [ ]  pending VM probe (Step 3.5)
+    ENV-4 root check                                  http_client.py, http_server.py [x] [ ]
+  Pipelines (Phase 4, SPEC §2, §5)
+    C1  Settings                                      settings.py                    [x] [ ]
+    C2  records + DropReason                          packets/records.py             [x] [ ]
+    C3/C5 events, actions, failures                   core/vocab.py                  [x] [ ]
+    IP-3 checksum (modular)                           packets/checksum.py            [x] [ ]
+    TCP-5 sequence space (wrap/unwrap)                packets/seqspace.py            [x] [ ]
+    TCP-1 TCP encode, constant MSS option             packets/tcpwire.py             [x] [ ]
+    IP-1/IP-2 IPv4 template + LFSR ID                 packets/ipv4.py                [x] [ ]
+    egress composition                                packets/egress.py              [x] [ ]
+    ingress gates 1-7 (IP-4, TCP-4, TCP-2, TCP-3)     packets/ingress.py             [x] [ ]
+    LOG-2 log line formatter                          packets/logline.py             [x] [ ]
+  Test seams + parsers (Phase 5, SPEC §6)
+    APP-4a fake stream                                tests/fakes.py                 [x] [ ]
+    APP-4b simulation harness + scenarios             tests/harness/                 [x] [ ]
+    API-2 response reader, request-head reader        web/parsing.py                 [x] [ ]
+  Sans-I/O core (Phase 6, SPEC §7)
+    TCP-15 inbound half (ring, ranges, FIN)           core/inbound.py                [x] [ ]
+    TCP-14a RTO estimator                             core/rto.py                    [x] [ ]
+    TCP-13/14b outbound half                          core/outbound.py               [x] [ ]
+    TCP-9/7/10/11/17 coordinator                      core/endpoint.py               [x] [ ]
+    TCP-8 listener                                    core/listener.py               [x] [ ]
+    harness campaign all green (M2)                   tests/harness/                 [x] [ ]
+  HTTP client (Phase 7, SPEC §8)
+    HCL-1 CLI · HCL-2 URL · HCL-3 resolve             http_client.py, web/urlparts   [x] [ ]
+    HCL-4 request · HCL-5/6 response, framing         web/fetch.py                   [x] [ ]
+    HCL-7 output · HCL-8 exit codes · HCL-9 close     web/fetch.py                   [x] [ ]
+  Driver (Phase 8, SPEC §9)
+    IO-1/2/3 raw socket, transmit FIFO, drain         driver/wire.py                 [x] [ ]
+    IP-5/IP-6 + TCP-6 UDP helper (port, source ip)    driver/addressing.py           [x] [ ]
+    LOG-1/3/4 journal · APP-3 trace                   driver/journal.py              [x] [ ]
+    TCP-12 pump                                       driver/pump.py                 [x] [ ]
+    C4 stream (dial, Rendezvous, put/take/finish)     driver/stream.py               [x] [ ]
+    APP-5 hooks (A3_FORCE_ISN, A3_TRACE)              entry points                   [x] [ ]
+  HTTP server (Phase 9, SPEC §10)
+    HSV-1 startup · HSV-4 400 · HSV-5 501             http_server.py, web/serve.py   [x] [ ]
+    HSV-6 403/404 mapping · HSV-7 types               web/serve.py, web/content.py   [x] [ ]
+    HSV-8 responses · HSV-3 head timeout/cap          web/content.py, web/serve.py   [x] [ ]
+    HSV-9 body · HSV-2/10 serve loop                  web/serve.py                   [x] [ ]
+  Congestion control (Phase 11, SPEC §12)
+    TCP-16 NewReno + byte counting + IW10             core/congestion.py             [x] [ ]
+  Test helpers still to write (not submitted)
+    tools/test/chunked-server.py (Step 10.2)                                         [x]  written + used
+    tools/test/run-all.sh (Step 14.1)                                                [ ]
+    tools/audit/run-audit.sh (Step 15.2)                                             [ ]
+
+=====================================================================================================
+4  MILESTONES                                        R date        S date        evidence
+=====================================================================================================
+  M1 network verified on fresh VMs                   sandbox 10-10     ________      verify-routing PASS x4
+  M2 core passes every harness scenario              2026-10-10        ________      harness output
+  M3 handshake/close/failure paths on VMs            sandbox 10-10     ________      logs + check_log.py
+  M4 first download md5 MATCH                        sandbox 10-10     ________      md5check.sh
+  M5 robust under loss + reorder                     sandbox 10-10     ________      docs/test-results.md
+  M6 fairness 0.6-1.6                                sandbox 10-10     ________      fairness.sh output
+  M7 submitted                                       -             ________      Gradescope receipt
+  ("sandbox" = Claude's 4-namespace replica with the same scripts and a real Linux kernel; every M must
+   still be repeated on your VMs, which is what the handout grades and screenshots need)
+
+  Teammate review checklist (send with the reference pass)
+    [ ] SPEC.md §1-§2 read; disagreements noted in SPEC §16
+    [ ] reference/ runs on the VMs (M1-M4 at least)
+    [ ] each SPEC item reviewed: design, alternatives (instructions.md Part V), risks
+    [ ] list of items to change before the submission pass
+
+=====================================================================================================
+5  REQUIREMENT CHECKLIST (graded items)                                   R   S   evidence / test
+  R ticks = verified in Claude's sandbox (real kernel, same scripts). Re-verify every line on the VMs.
+=====================================================================================================
+  Part A — network (10%)
+    A1 every machine reaches A/B/C; client<->r2 on Link D                 [x] [ ]  verify-routing.sh
+    A2 client->server via r1, r2                                          [x] [ ]  traceroute client
+    A3 server->client via r2, Link D                                      [x] [ ]  traceroute server
+    A4 routers forward, hosts don't                                       [x] [ ]  sysctl + ip route get
+    A5 r1: exactly one non-connected route                                [x] [ ]  ip route on r1
+    A6 r2: no default route                                               [x] [ ]  ip route on r2
+    A7 rp_filter strict on r1 and server                                  [x] [ ]  sysctl
+    A8 static only (no DHCP, no daemons)                                  [x] [ ]  fresh-boot test
+    scripts: only ip/sysctl, args only, fresh boot, one run               [x] [ ]  check_compliance.sh
+  Part B — TCP (15%)
+    T1 IPv4 header + checksum, ID != 0                                    [x] [ ]  unit + log
+    T2 TCP header + checksum                                              [x] [ ]  unit + tcpdump -vv
+    T3 MSS=1460 only on SYN/SYN-ACK; payload <= min(1460, peer)           [x] [ ]  check_log.py
+    T4 bad checksums dropped silently; options parsed                     [x] [ ]  unit (ingress)
+    T5 only own connection                                                [x] [ ]  fairness run logs
+    T6 random ISN                                                         [x] [ ]  log
+    T7 SYN/SYN-ACK retransmit <=1 s, >=6 s                                [x] [ ]  netem 100% on r1
+    T8 RST aborts                                                         [x] [ ]  closed port
+    T9 FIN handling, 2 s limit, no TIME_WAIT                              [x] [ ]  harness + log
+    T10 window limit, cumulative ACK, RTO<=1 s, 10 s give-up              [x] [ ]  harness + kill test
+    T11 in-order once, ACK every data segment, win 65535                  [x] [ ]  log
+    T12 loss + reorder, out-of-order buffered                             [x] [ ]  netem matrix
+    T13 client port 61000-65535; server -p                                [x] [ ]  log
+    T14 Reno-style, fair with kernel TCP (several flows)                  [x] [ ]  fairness.sh
+    packet log format (section 2.6)                                       [x] [ ]  check_log.py
+    raw socket + IP_HDRINCL; no forbidden APIs                            [x] [ ]  check_compliance.sh
+  Part C — HTTP client (15%)
+    URL forms, default port/path, query kept, invalid -> 2                [x] [ ]  unit (30+ cases)
+    one GET, Host as written, Connection: close, no Accept-Encoding       [x] [ ]  unit byte-exact
+    Content-Length / chunked / close-delimited                            [x] [ ]  chunked-server.py
+    body to -o or stdout, status line to stderr                           [x] [ ]  manual
+    exit 0 / 1 / 2                                                        [x] [ ]  404, bad URL, kill
+  Part D — HTTP server (15%)
+    defaults -p 8080 -d ./www; one connection at a time; never exits      [x] [ ]  server-edge.sh
+    10 s head timeout, no response                                        [x] [ ]  server-edge.sh
+    400 > 501 > 403 > 404 > 200 order                                     [x] [ ]  server-edge.sh
+    mapping, index.html, query stripped, no decoding                      [x] [ ]  server-edge.sh
+    headers (Length, Type, Connection: close), HEAD                       [x] [ ]  curl -I
+    content types (Table 5)                                               [x] [ ]  server-edge.sh
+  Part E — interop (15%)
+    our client <-> our server (VM to VM)                                  [x] [ ]  md5check.sh
+    curl, wget -> our server; our client -> python http.server            [x] [ ]  md5check.sh
+  Report (10%)
+    R1 adapters + ip addr/route ×4   R2 traceroutes   R3 rp_filter        [ ] [ ]  screenshots/R1-R3
+    R4 client vs python server       R5 3 clients vs our server           [ ] [ ]  screenshots/R4-R5
+    R6 capture + retransmission / OOO / CC description                    [ ] [ ]  screenshots/R6
+  Submission
+    README.md filled (no TODO)                                            [ ] [ ]
+    report.pdf at repo root                                               [ ] [ ]
+    package.sh passes; dry run on fresh snapshots                         [ ] [ ]
+    uploaded; re-downloaded checksum matches                              [-] [ ]
+  Viva (20%)
+    every SPEC item explained from the code without notes                     [ ]
+    docs/viva-prep.md answered out loud                                       [ ]
+
+=====================================================================================================
+6  DECISIONS, TA ANSWERS, OPEN QUESTIONS
+=====================================================================================================
+  Pending (defaults from SPEC §14 apply until answered)
+    ENV-3 GRO policy ........ waits on Step 3.5 probe + TA Q3   default: launcher disables GRO if probe fails
+    ENV-2 RST mechanism ..... TA Q2                             default: iptables chains A3C/A3S
+    NET-4 forwarding ........ Step 2.5 + TA Q4                  default: per-interface keys
+    ZIP root ................ TA Q1                             default: files at zip root
+    Fairness setup .......... TA Q5                             default: several server instances on ports
+    arm64 / shared folder ... TA Q9                             default: develop on arm64; x86 dry run if possible
+    Solo submission ......... TA Q10                            default: A3_<entry>_<teammate>.zip (team)
+  TA answers (date — question — answer)
+    -
+  Decision changes (also add to SPEC §16)
+    -
+
+=====================================================================================================
+7  BUGS AND TEST RESULTS
+=====================================================================================================
+  Bugs (one line each; move to "fixed" with the commit hash)
+  ID   Date        Pass  Item      Symptom                              Cause / fix                 Status
+  ---  ----------  ----  --------  -----------------------------------  --------------------------  ------
+  B01  2026-10-10  R     test env  handshake never completes on loopback  lo leaves TCP csum to offload  env only
+                                   (trace: bad-tcp-csum)                  -> veth + ethtool tx off;    (noted G3,
+                                                                          watch for it on VMs          setup.md)
+  B02  2026-10-10  R     IO/TCP-4  ingress function named accept()       violates SPEC I4 (grep trap);  fixed
+                                                                          renamed screen()
+  B03  2026-10-10  R     tools     server-edge head-timeout check said    nc waits on its own timer;     fixed
+                                   20 s                                   replaced with python timer
+  B04  2026-10-10  R     tests     filter test failed                     test used the wrong Exact view fixed
+  B05  2026-10-10  R     tests     your first commit refused by ruff      long lines, unused import,     fixed
+                                   (10 errors in tests/)                  zip(); reference/ formatted too
+  B06  2026-10-10  -     tools     hook ran tests on empty src/ and on    hook now tests reference/;     fixed
+                                   Python 3.13 (stale .venv)              src/ via `git config
+                                                                          a3.testsrc true`; setup-dev
+                                                                          rebuilds a wrong-version .venv
+
+  Test results (detail goes in docs/test-results.md)
+  Date        Pass  Test                                   Result      Notes
+  ----------  ----  -------------------------------------  ----------  ---------------------------------
+  2026-10-10  R     unit + harness (tests/unit, 47 tests)  47/47 OK    loss 1-10% x reorder 0/25%, dup,
+                                                                       corruption, wrap, RST, stall, close
+  2026-10-10  R     netcfg in 4-namespace topology          PASS        26/26 pings; traceroutes exact
+                                                                       (client: .1.1, .4.1, .3.10;
+                                                                       server: .3.1, .1.10)
+  2026-10-10  R     client -> python http.server            MATCH x4    index, blob, 1M, 10M (10M in 0.6 s)
+  2026-10-10  R     curl / wget / ours -> our server        MATCH x9    clean closes; log 0 problems
+  2026-10-10  R     across asymmetric topology              MATCH       TTL 63 at client, 62 at server
+  2026-10-10  R     server-edge.sh                          all PASS    head timeout 10.0 s, no bytes
+  2026-10-10  R     random loss 5% / 10% (iptables)         MATCH       ours/python/curl, both directions
+  2026-10-10  R     fairness 1v1 / 3v3 (rate policer)       0.93-1.14   ours 3.37 vs curl 3.63 Mbit/s avg
+  2026-10-10  R     client framings (chunked-server.py)     all OK      chunked+ext+trailers, close, length
+  2026-10-10  R     exit codes                              all OK      404->1, trunc/bad/URL/DNS/port->2
+  2026-10-10  R     refused / unreachable / server killed   0.1 s / 7.1 s / ~10 s after kill (rc=2)
+  2026-10-10  R     forced ISN 4294962296                   MATCH       sequence wrap on real path
+  Not testable in sandbox: netem reordering on the real path (no sch_netem), GRO probe, tbf bottleneck.
+
+
+=====================================================================================================
+8  SESSION LOG (append only)
+=====================================================================================================
+  2026-10-10  docs   SPEC.md (C-1), instructions.md (solo track, two-pass policy), setup.md written;
+                     project placed at ~/developer/COL334_A3; log.txt created. Next: setup.md S1.
+  2026-10-10  R      Reference pass written: reference/{netcfg,client,server,src}. Harness + fake stream +
+                     unit tests in tests/ (run: A3_SRC=reference/src bash tools/test/run-unit.sh).
+                     Added tools/test/chunked-server.py; fixed server-edge.sh head-timeout check;
+                     run-unit.sh and check_compliance.sh accept A3_SRC; netns sandbox accepts A3_NETCFG.
+                     Verified in a 4-namespace replica: Part A checks, all transfers, loss, fairness,
+                     failure paths, exit codes, server rules. Next: same tests on the VMs.
+  2026-10-10  setup  You: Python 3.10 via conda env "a3" (Homebrew cannot build it on macOS 14); git init.
+                     First commit blocked by the pre-commit hook (ruff, B05) -> fixed by Claude; all 47
+                     tests + real-path downloads re-verified after reformatting.

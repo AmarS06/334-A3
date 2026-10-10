@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+ROOT=$(git rev-parse --show-toplevel); cd "$ROOT" || exit 1
+. tools/host/gnu-path.sh
+out=$(bash tools/check_compliance.sh) || { echo "$out"; echo "pre-commit: compliance check failed"; exit 1; }
+if [ -x .venv/bin/ruff ] && [ -n "$(find src tests -name '*.py' -size +0 2>/dev/null)" ]; then
+  .venv/bin/ruff check --config tools/host/ruff.toml src tests || { echo "pre-commit: ruff failed"; exit 1; }
+fi
+if [ -d reference/src ]; then
+  A3_SRC=reference/src bash tools/test/run-unit.sh -q || { echo "pre-commit: tests failed on reference/"; exit 1; }
+fi
+if [ "$(git config --get a3.testsrc)" = "true" ]; then
+  bash tools/test/run-unit.sh -q || { echo "pre-commit: tests failed on src/ (disable: git config a3.testsrc false)"; exit 1; }
+fi
+exit 0

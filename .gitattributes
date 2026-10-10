@@ -1,0 +1,10 @@
+* text=auto eol=lf
+*.pdf binary
+*.png binary
+*.jpg binary
+*.pcap binary
+*.pcapng binary
+*.zip binary
+client/run-client text eol=lf
+server/run-server text eol=lf
+tools/git-hooks/pre-commit text eol=lf
