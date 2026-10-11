@@ -168,62 +168,100 @@ host connection and no DHCP, which handout §1.5 requires.
      on every interface (the handout's baseline).
 
 **Check, after booting the base once more and logging in:**
-- `python3 --version` prints 3.10.x;
+- `python3 --version` prints 3.12.x (Ubuntu 24.04; grader-version checks run on the Mac's 3.10 env);
 - `ip -br addr` shows interfaces DOWN or without IPv4 (except `lo`);
 - `sysctl -a 2>/dev/null | grep '\.rp_filter'` is all `= 1`.
 
 Then power off.
 
-## S6 Four VMs from the base [you, on the Mac]
+## S6 Four VMs from the base [you: Mac, then each VM]
+Everything here can be redone from scratch at any time; `a3-base` and its `base-sealed` snapshot are
+never changed. Type every command on **one line** and press Enter only at its end (a `>` prompt means
+an unclosed quote: press Ctrl+C and retype).
+
+**6.1 Start clean (Mac).**
+1. Power off every VM: in each VM `sudo poweroff`, or VirtualBox → right-click → **Stop → Power Off**.
+   All five must show *Powered Off*.
+2. Optional: `a3-base` → Settings → **System** → memory **1024 MB** (the clones copy it; 4 × 2 GB is too
+   much for most Macs).
+3. Terminal:
+   ```
+   cd ~/Desktop/"COL334 A3"
+   bash tools/vm/vbox-clone-topology.sh destroy
+   ```
+   Prints `deleted a3-client` … for the clones that existed (nothing if none did). VirtualBox now lists
+   only `a3-base`. Don't delete `a3-base` or its snapshot.
+
+**6.2 Build the clones and the transfer image (Mac).**
 ```
-cd ~/Desktop/"COL334 A3"
+brew install xorriso
+bash tools/host/make-transfer-iso.sh
 bash tools/vm/vbox-clone-topology.sh create
 bash tools/vm/vbox-clone-topology.sh transfer
+bash tools/vm/vbox-clone-topology.sh map
 ```
-- **create:** takes snapshot `base-sealed` and makes four linked clones, `a3-client`, `a3-r1`, `a3-r2` and
-  `a3-server`. It removes the NAT adapter and attaches internal networks (client: LAN_A, LINK_D ·
-  r1: LAN_A, LAN_B · r2: LAN_B, LAN_C, LINK_D · server: LAN_C) with fresh MACs, then warns if a DHCP
-  server is attached to any of them.
-- **transfer:** inserts the transfer image into all four.
+- `make-transfer-iso.sh` → `built …/a3-transfer.iso (…), stamp <date time>`
+- `create` → four `created a3-… (adapter type …)` lines, no `WARNING`
+- `transfer` → four `a3-…: …/a3-transfer.iso -> …` lines
+- `map` → 8 lines `VM adapterN NETWORK MAC`: client LAN_A+LINK_D, r1 LAN_A+LAN_B, r2 LAN_B+LAN_C+LINK_D,
+  server LAN_C. Keep this output for S7.
 
-Then start each clone, log in, and run:
-```
-sudo hostnamectl set-hostname client    # r1, r2 or server in the other VMs
-sudo mkdir -p /mnt/a3
-grep -q /mnt/a3 /etc/fstab || echo '/dev/sr0 /mnt/a3 iso9660 ro,nofail 0 0' | sudo tee -a /etc/fstab
-sudo reboot
-```
+**6.3 Initialise each clone (in the VM; do client, r1, r2, server one after another).**
+1. VirtualBox → select `a3-client` → **Start**. Click inside the window (the host key, Left ⌘, releases it).
+2. Log in as `a3` (the prompt still says `a3-base login:`; that's expected).
+3. Run:
+   ```
+   sudo mkdir -p /mnt/a3
+   sudo mount -o ro /dev/sr0 /mnt/a3
+   sudo bash /mnt/a3/tools/vm/node-init.sh client
+   sudo reboot
+   ```
+   Use `r1`, `r2`, `server` in the other VMs. `node-init.sh` sets the hostname (and `/etc/hosts`, so
+   `sudo` doesn't complain), writes the one `/etc/fstab` line that mounts the transfer image on `/mnt/a3`
+   at every boot, and checks the interface count. It prints `hostname: a3-base -> client`, the fstab
+   line, `links: 2 non-lo interfaces (OK)`. Running it twice is harmless.
+4. After the reboot (`client login:`), log in and run:
+   ```
+   bash /mnt/a3/tools/vm/check-fresh.sh
+   ```
+   Every line must start with `OK` and the last line must be `RESULT: fresh state OK`. It also prints one
+   `name interface MAC state` line per interface for S7.
 
-**Check, in each VM:**
-- `hostname` is correct;
-- `cat /mnt/a3/TRANSFER_STAMP` works;
-- `ip -br link` lists exactly the expected number of non-`lo` interfaces.
+**Expected interface counts:** client 2 · r1 2 · r2 3 · server 1 (besides `lo`).
 
 **Updating the code in the VMs later** (after you or Claude change files on the Mac):
 1. Mac: `bash tools/host/make-transfer-iso.sh && bash tools/vm/vbox-clone-topology.sh transfer`
-2. Each VM: `sudo umount /mnt/a3; sudo mount /mnt/a3 && cat /mnt/a3/TRANSFER_STAMP`
+2. Each running VM: `sudo umount /mnt/a3; sudo mount /mnt/a3 && cat /mnt/a3/TRANSFER_STAMP` (shows the new
+   build time). VMs that were off pick it up at their next boot.
 
 `/mnt/a3` is read-only, so write logs, captures and downloads to `~` or `/tmp`, never into `/mnt/a3`.
 
-## S7 Verify the fresh state and record the interface map [you]
-1. In each VM, run:
+## S7 Verify the fresh state, record the interface map, snapshot [you]
+1. **Fresh state:** `check-fresh.sh` (S6.3 step 4) printed `RESULT: fresh state OK` in all four VMs. It
+   checks: hostname, transfer image with real names and execute bits, interface count, no IPv4 address,
+   no route, every `rp_filter = 1`, `ip_forward = 0`, no netplan file, cloud-init disabled. Any `FAIL`
+   line says what to fix; an address or route means DHCP leaked in (S4 step 3, S5 seal).
+2. **Interface map:** match each VM's `name interface MAC` lines (from `check-fresh.sh`) with the Mac's
+   `map` lines by MAC. That tells you which Linux interface sits on which network, e.g. client
+   `enp0s8` = LAN_A. Fill `docs/vm-map.md` (or paste both outputs to Claude, who fills it). These names
+   are the arguments to the netcfg scripts.
+3. **Isolation check** (once; client and r1 share LAN_A). With `IF` = that VM's LAN_A interface:
+   - client: `sudo ip addr add 10.99.0.1/24 dev IF && sudo ip link set IF up`
+   - r1: `sudo ip addr add 10.99.0.2/24 dev IF && sudo ip link set IF up`
+   - client: `ping -c2 10.99.0.2` must get 2 replies; `ping -c1 -W2 8.8.8.8` must fail
+     (`Network is unreachable`).
+   - Undo on both: `sudo ip addr flush dev IF && sudo ip link set IF down` (or just reboot).
+4. **Screenshots for the report (R1):** each VM → Settings → **Network**, one screenshot per adapter tab
+   (Adapter 1–3), saved into `report/screenshots/R1/` on the Mac.
+5. **Snapshot:** power off all four (`sudo poweroff` in each), then on the Mac:
    ```
-   ip -br link; ip -br addr; ip route; sysctl -a 2>/dev/null | grep -E '\.rp_filter'
+   bash tools/vm/vbox-clone-topology.sh snapshot fresh
    ```
-   **Expected:** every non-`lo` interface DOWN with no IPv4 address; no routes; every rp_filter = 1.
-   Any address or route means DHCP leaked in (check S4 step 3 and that S5's seal ran).
-2. Mac: `bash tools/vm/vbox-clone-topology.sh map` lists each adapter's MAC and network. Match those to
-   `ip -br link` in each VM (Linux prints MACs with colons and lower case) and fill `docs/vm-map.md`.
-3. Power everything off, then on the Mac: `bash tools/vm/vbox-clone-topology.sh snapshot fresh`.
-   Later: `… restore fresh` (fresh-boot tests) and `… snapshot netcfg-ok`.
-4. Screenshot each VM's Settings → Network page (all adapters) into `report/screenshots/R1/` (report
-   item R1).
-5. Isolation check (one-time, in any two VMs on the same network):
-   `sudo ip addr add 10.99.0.1/24 dev <IF> && sudo ip link set <IF> up` on one, `.2` on the other, then
-   `ping -c2` between them. It must work. `ping 8.8.8.8` must fail. Restore `fresh` afterwards.
+   Prints `a3-client: snapshot fresh` … for all four. Later: `… restore fresh` returns every VM to this
+   exact state (fresh-boot tests), and after netcfg works: `… snapshot netcfg-ok`.
 
-**Check:** all four `fresh` snapshots exist and `docs/vm-map.md` is complete. **The environment is ready;
-Phase 0 can start.**
+**Check:** all four `fresh` snapshots exist, `docs/vm-map.md` is complete, the isolation check passed.
+**The environment is ready; Phase 0 can start.**
 
 ## S8 Later-phase tools (install when the phase arrives)
 | Phase | Tool | macOS |

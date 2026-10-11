@@ -54,8 +54,15 @@ case ${1:?usage: $0 create|transfer [ISO]|map|snapshot NAME|restore NAME|destroy
         echo "in each VM: sudo umount /mnt/a3 2>/dev/null; sudo mount -o ro,mode=0555,dmode=0555 /dev/sr0 /mnt/a3"
         ;;
     map)
-        for n in $NODES; do echo "== a3-$n"; info "a3-$n" | grep -E '^(macaddress|intnet|nictype)[0-9]=' || true; done
-        echo "Linux shows MACs as aa:bb:..; match them with 'ip -br link' in each VM and fill docs/vm-map.md"
+        for n in $NODES; do
+            info "a3-$n" | awk -F= -v vm="$n" '
+                /^intnet[0-9]=/ { k = substr($1, 7); gsub(/"/, "", $2); net[k] = $2 }
+                /^macaddress[0-9]=/ { k = substr($1, 11); gsub(/"/, "", $2); mac[k] = tolower($2) }
+                END { for (k = 1; k <= 8; k++) if (k in net) {
+                    m = mac[k]; printf "%-7s adapter%d  %-7s %s:%s:%s:%s:%s:%s\n", vm, k, net[k],
+                        substr(m,1,2), substr(m,3,2), substr(m,5,2), substr(m,7,2), substr(m,9,2), substr(m,11,2) } }'
+        done
+        echo "match each MAC with the interface line printed by check-fresh.sh in that VM; fill docs/vm-map.md"
         ;;
     snapshot)
         s=${2:?snapshot name}

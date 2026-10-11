@@ -18,14 +18,18 @@ Sections
 =====================================================================================================
 0  SNAPSHOT
 =====================================================================================================
-  Date ............ 2026-10-10
-  Current step .... you: setup.md S1-S4 (downloads, git) · Claude: reference pass done, waiting for VMs
-  Pass ............ R complete and green in Claude's sandbox (47 unit/harness tests + real-kernel tests);
-                    R on your VMs not started; S not started
+  Date ............ 2026-10-11
+  Current step .... you: setup.md S7 (check-fresh in all 4, interface names, isolation, R1 shots, `fresh`)
+  Pass ............ R complete and green in Claude's sandbox; R on your VMs NOT started; S (src/) empty
   Last green ...... 2026-10-10 reference: unit 47/47, harness 16/16, 4-namespace topology e2e all MATCH
-  Blockers ........ none (ENV-3 GRO policy pending the VM probe, Step 3.5)
-  Next 3 actions .. 1) finish setup.md S4-S7   2) run reference/netcfg on the VMs (Phase 2 checks)
-                    3) run reference client/server on the VMs (log section 1, boxes B2-B4)
+  Environment ..... VirtualBox, Ubuntu 24.04.5 arm64 (handout 4.x allows later releases; 6.1 forbids newer
+                    language features -> Mac conda 3.10 checks); 4 clones on LAN_A/B/C + LINK_D;
+                    MACs in docs/vm-map.md; no `fresh` snapshots yet; Mac has uncommitted changes
+  Blockers ........ TA Q10 (solo allowed? zip name) unanswered; Q1-Q8 unanswered (defaults in SPEC 14)
+  Remaining (est.). finish S7 0.5-1 h · validate reference on VMs + R1-R6 evidence 8-12 h ·
+                    own src/ pass 45-70 h · audit+regression 6-10 h · report+package 4-6 h · viva 3-4 h
+  Next 3 actions .. 1) S7 + `snapshot fresh`  2) reference netcfg on VMs + verify-routing (Phase 2)
+                    3) send TA questions (Q10 first)
   Teammate review . not sent
 
 =====================================================================================================
@@ -308,3 +312,17 @@ Sections
                      was read by Linux via plain ISO9660 (lowercase, dotless names, TRANSFER_STAMP "missing")
                      -> make-transfer-iso.sh now requires xorriso (-r -J, Rock Ridge: real names + exec
                      bits); setup S1 adds brew xorriso, S6 fstab line simplified, troubleshooting rows added.
+  2026-10-11  setup  S6/S7 rewritten for a from-scratch rebuild: destroy -> make-transfer-iso -> create ->
+                     transfer -> map; new tools/vm/node-init.sh (hostname + /etc/hosts + one fstab line +
+                     interface count, idempotent) and tools/vm/check-fresh.sh (OK/FAIL fresh-state check +
+                     interface/MAC lines for the map); vbox-clone-topology.sh map prints "VM adapterN NET MAC".
+                     Replaces the hand-typed fstab line that caused the earlier mount failures.
+  2026-10-11  setup  S6.3 fix: mounting the image on /mnt made /mnt read-only, so node-init.sh could not create
+                     /mnt/a3 ("Read-only file system"). Now: mkdir /mnt/a3, mount there, run node-init.sh.
+  2026-10-11  audit  Setup audit: 4 clones built with correct networks; transfer image OK (xorriso); TA
+                     questions not sent; src/ empty; report/ screenshots empty; no `fresh`/`netcfg-ok`
+                     snapshots. Remaining-work estimate recorded in section 0. vm-map.md MACs filled.
+  2026-10-12  setup  S7.1/S7.2 done: check-fresh.sh RESULT OK on client, r1, r2, server (image 2026-10-11
+                     16:44:28). Interface map (adapter 82540EM): client enp0s8=LAN_A enp0s9=LINK_D; r1
+                     enp0s8=LAN_A enp0s9=LAN_B; r2 enp0s8=LAN_B enp0s9=LAN_C enp0s10=LINK_D; server
+                     enp0s8=LAN_C. docs/vm-map.md complete. Left: isolation ping, R1 shots, `fresh` snapshot.
