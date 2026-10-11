@@ -9,7 +9,7 @@ trap 'rm -rf "$STAGE"' EXIT
 mkdir -p "$STAGE/a3"
 (cd "$ROOT" && tar cf - --exclude=.git --exclude=.venv --exclude=refcorpus --exclude=scratch \
     --exclude=captures --exclude=dist --exclude=audit-out --exclude=tests/www --exclude=__pycache__ \
-    --exclude=.ruff_cache --exclude='*.pcap' --exclude='*.pcapng' --exclude=.DS_Store \
+    --exclude=.ruff_cache --exclude='*.pcap' --exclude='*.pcapng' --exclude=.DS_Store --exclude='*.png' \
     --exclude=./COL334_assignment_3.pdf .) | (cd "$STAGE/a3" && tar xf -)
 date "+%Y-%m-%d %H:%M:%S" > "$STAGE/a3/TRANSFER_STAMP"
 rm -f "$OUT"

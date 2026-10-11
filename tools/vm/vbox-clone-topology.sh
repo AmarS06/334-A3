@@ -21,6 +21,8 @@ insert() {
     if [ -z "$slot" ]; then echo "$vm: no optical drive found; add one in Settings → Storage" >&2; return 1; fi
     dev=${slot##*-}; slot=${slot%-*}; port=${slot##*-}; ctl=${slot%-*}
     VBoxManage storageattach "$vm" --storagectl "$ctl" --port "$port" --device "$dev" --type dvddrive \
+        --medium emptydrive --forceunmount >/dev/null
+    VBoxManage storageattach "$vm" --storagectl "$ctl" --port "$port" --device "$dev" --type dvddrive \
         --medium "$iso" --forceunmount >/dev/null
     echo "$vm: $iso -> $ctl port $port device $dev"
 }
@@ -51,7 +53,7 @@ case ${1:?usage: $0 create|transfer [ISO]|map|snapshot NAME|restore NAME|destroy
         iso=${2:-$ISO_DEFAULT}
         [ -f "$iso" ] || { echo "no ISO at $iso; run tools/host/make-transfer-iso.sh first" >&2; exit 1; }
         for n in $NODES; do insert "a3-$n" "$iso" || true; done
-        echo "in each VM: sudo umount /mnt/a3 2>/dev/null; sudo mount -o ro,mode=0555,dmode=0555 /dev/sr0 /mnt/a3"
+        echo "running VMs: cd ~; sudo umount /mnt/a3; sudo mount /mnt/a3 && cat /mnt/a3/TRANSFER_STAMP (or power off + start)"
         ;;
     map)
         for n in $NODES; do

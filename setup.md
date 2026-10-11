@@ -231,8 +231,9 @@ bash tools/vm/vbox-clone-topology.sh map
 
 **Updating the code in the VMs later** (after you or Claude change files on the Mac):
 1. Mac: `bash tools/host/make-transfer-iso.sh && bash tools/vm/vbox-clone-topology.sh transfer`
-2. Each running VM: `sudo umount /mnt/a3; sudo mount /mnt/a3 && cat /mnt/a3/TRANSFER_STAMP` (shows the new
-   build time). VMs that were off pick it up at their next boot.
+2. Each running VM: `cd ~; sudo umount /mnt/a3; sudo blockdev --flushbufs /dev/sr0; sudo mount /mnt/a3 && cat
+   /mnt/a3/TRANSFER_STAMP` (shows the new build time). A guest `sudo reboot` is not enough if the VM
+   was running when the image was rebuilt: power it off fully and start it again. VMs that were off pick it up at their next boot.
 
 `/mnt/a3` is read-only, so write logs, captures and downloads to `~` or `/tmp`, never into `/mnt/a3`.
 
@@ -314,6 +315,7 @@ the VMs.
 | `mount: /dev/sr0: no medium found` | the optical drive is empty; insert the image (row above) |
 | `ls /mnt/a3` shows lowercase names (`readme.md`, `gitignore`), `TRANSFER_STAMP` "not found" | image built without Rock Ridge: `brew install xorriso`, rebuild with `make-transfer-iso.sh`, `vbox-clone-topology.sh transfer`, then in the VM `sudo umount /mnt/a3; sudo mount /mnt/a3` |
 | `mount: can't find in /etc/fstab` | fstab line mistyped (check spaces, leading `/`, one line): `sudo sed -i '\#/mnt/a3#d' /etc/fstab` and re-add the S6 line |
+| `TRANSFER_STAMP` still shows the old time after `transfer` + remount or a guest reboot | the VM was started before the image was rebuilt and VirtualBox still holds the old (deleted) file open; a guest `reboot` keeps the same VirtualBox process. Fix: **power the VM off completely** (`sudo poweroff`, wait for *Powered Off*) and start it again, or re-run `vbox-clone-topology.sh transfer` (it now ejects to an empty drive first, forcing a reopen) and remount |
 | Old code in a VM | rebuild and re-insert the image (S6 "Updating the code"); `cat /mnt/a3/TRANSFER_STAMP` shows its build time |
 | A clone gets an IPv4 address at boot | a DHCP server is attached to an A3 network (`VBoxManage list dhcpservers`), or S5 seal didn't run: restore `base-sealed`, re-seal, re-clone |
 | Boot hangs ~2 min on "wait for network" | `sudo systemctl mask systemd-networkd-wait-online.service` (seal-base does this) |

@@ -332,3 +332,13 @@ Sections
                      and renamed (SPEC 16). Re-verified: unit 47/47 on Python 3.10, every file parses as 3.10,
                      ruff clean, 4-namespace e2e big.html/1M/10M MATCH, 5% loss MATCH, 404 rc=1, refused
                      rc=2, logs 0 problems, server-edge 17/17. Not yet run on the VMs.
+  2026-10-12  setup  Image rebuilt 00:41:54 and transferred, but running VMs kept showing the 2026-10-11 16:44
+                     stamp (stale disc cache / busy umount). Fix: reboot, or umount + blockdev --flushbufs +
+                     mount. Added to setup.md S6 and troubleshooting.
+  2026-10-12  setup  Root cause of the stale stamp: server VM started 19:01 UTC, image rebuilt 19:11 (rm + new
+                     file); the running VirtualBox process kept the old deleted file open, and a guest reboot
+                     keeps the process. Fix: full power-off/start; `transfer` now attaches emptydrive before the
+                     ISO to force a reopen. setup.md corrected (guest reboot is not enough).
+  2026-10-12  docs   Evidence layout: docs/evidence/README.md + phase2/3/8/10/11/12/13/16 folders, each with a
+                     CHECKLIST.md of expected screenshots; report figures stay in report/screenshots/R1-R6.
+                     make-transfer-iso.sh now skips *.png (screenshots never need to reach the VMs).
