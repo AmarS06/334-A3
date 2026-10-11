@@ -16,7 +16,7 @@ case $OS in
     chk bash4    MISSING "brew install bash" "$( [ -x /opt/homebrew/bin/bash ] && echo /opt/homebrew/bin/bash || echo bash-missing )"
     chk gnu-grep MISSING "brew install grep gnu-sed coreutils" ggrep
     chk gnu-sed  MISSING "brew install gnu-sed" gsed
-    chk hypervisor MISSING "Apple Silicon: VMware Fusion (setup.md S4); Intel: brew install --cask virtualbox" vmrun "/Applications/VMware Fusion.app/Contents/Library/vmrun" utmctl VBoxManage;;
+    chk hypervisor MISSING "brew install --cask virtualbox (7.1 or newer; setup.md S4)" VBoxManage vmrun utmctl;;
   *)      chk hypervisor MISSING "apt install virtualbox | winget install Oracle.VirtualBox (Windows side)" VBoxManage VBoxManage.exe;;
 esac
 chk wireshark  optional "apt install wireshark | brew install --cask wireshark | winget install WiresharkFoundation.Wireshark" wireshark tshark

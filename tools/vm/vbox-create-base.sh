@@ -4,6 +4,10 @@ set -euo pipefail
 ISO=${1:?usage: $0 ISO [VM_FOLDER]}; DIR=${2:-"$HOME/VirtualBox VMs"}; NAME=${A3_BASE:-a3-base}
 REPO="$(cd "$(dirname "$0")/../.." && pwd)"
 command -v VBoxManage >/dev/null || { echo "VBoxManage not found" >&2; exit 1; }
+if [ "$(uname -m)" = arm64 ] || [ "$(uname -m)" = aarch64 ]; then
+    echo "Apple Silicon/Arm host: create the base VM in the VirtualBox GUI instead (setup.md S5)." >&2
+    exit 1
+fi
 [ -f "$ISO" ] || { echo "ISO not found: $ISO" >&2; exit 1; }
 if VBoxManage showvminfo "$NAME" >/dev/null 2>&1; then echo "$NAME already exists" >&2; exit 1; fi
 VBoxManage createvm --name "$NAME" --ostype Ubuntu_64 --basefolder "$DIR" --register

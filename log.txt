@@ -56,13 +56,13 @@ Sections
 =====================================================================================================
 2  SETUP STATUS (setup.md)
 =====================================================================================================
-  [x] S0 locations decided (~/developer/COL334_A3, ~/A3-VMs)
+  [x] S0 locations decided (~/Desktop/COL334 A3 since 2026-10-10 evening; ~/A3-VMs)
   [ ] S1 host tools (brew: git bash python@3.10 grep gnu-sed coreutils zip; Ubuntu 22.04 arm64 ISO)
   [x] S2 project folder on the Mac (placed by Claude, 2026-10-10)
   [ ] S3 git init, setup-dev.sh, first commit, private remote
-  [ ] S4 VMware Fusion + 4 private networks (vmnet2-5, no host, no DHCP)
-  [ ] S5 base VM a3-base: install, open-vm-tools, /mnt/a3, install-packages, seal, snapshot base-sealed
-  [ ] S6 four linked clones, adapters per table, unique MACs, hostnames
+  [ ] S4 VirtualBox 7.1+ (brew cask); internal networks LAN_A/LAN_B/LAN_C/LINK_D need no setup
+  [ ] S5 base VM a3-base (GUI, Ubuntu 64-bit ARM): install, transfer ISO at /mnt/a3, install-packages, seal
+  [ ] S6 vbox-clone-topology.sh create + transfer; hostnames; /mnt/a3 in fstab
   [ ] S7 fresh-state check, docs/vm-map.md, snapshots "fresh", R1 adapter screenshots, isolation check
   [ ] S9 TA questions Q1-Q10 sent (Q10 solo submission, Q9 arm64)
   VM interface names (copy from docs/vm-map.md once known):
@@ -218,7 +218,8 @@ Sections
     NET-4 forwarding ........ Step 2.5 + TA Q4                  default: per-interface keys
     ZIP root ................ TA Q1                             default: files at zip root
     Fairness setup .......... TA Q5                             default: several server instances on ports
-    arm64 / shared folder ... TA Q9                             default: develop on arm64; x86 dry run if possible
+    arm64 / transfer ISO .... TA Q8, Q9                         default: develop on arm64 (handout allows Apple
+                                                                Silicon hosts); x86 dry run if possible
     Solo submission ......... TA Q10                            default: A3_<entry>_<teammate>.zip (team)
   TA answers (date — question — answer)
     -
@@ -281,3 +282,29 @@ Sections
   2026-10-10  setup  You: Python 3.10 via conda env "a3" (Homebrew cannot build it on macOS 14); git init.
                      First commit blocked by the pre-commit hook (ruff, B05) -> fixed by Claude; all 47
                      tests + real-path downloads re-verified after reformatting.
+  2026-10-10  setup  Broadcom login failing -> switched hypervisor to VirtualBox 7.1+ (Apple Silicon).
+                     Ubuntu 22.04 arm64 kernel has no VirtualBox guest driver, so code reaches the VMs via a
+                     read-only transfer ISO: tools/host/make-transfer-iso.sh + vbox-clone-topology.sh
+                     transfer (rewritten: reuses base adapter type, finds the optical drive itself).
+                     setup.md S4-S7 rewritten; instructions VII.4, vm-map, TA Q8/Q9 updated.
+                     Grader platform confirmed from handout: Ubuntu 22.04 x86-64 (6.1); Apple Silicon
+                     hosts allowed for development (1.5).
+  2026-10-10  sync   Mac ~/developer/COL334_A3 verified identical to Claude's copy (md5, 139 files; 2 stale
+                     .gitkeep on the Mac only). Project "COL334 A3" mirrored under COL334_A3/ with the same
+                     paths (93 text files + MANIFEST.txt); old claude/*.md copies removed. VM folder layout
+                     added to setup.md S0. Your first commit 182bac4 is on the Mac.
+  2026-10-10  move   Repo moved ~/developer/COL334_A3 -> ~/Desktop/COL334 A3 (git history, remote and
+                     commit 182bac4 kept; .venv not copied, rebuild with setup-dev.sh). Root handout PDF
+                     ignored in git (same file as docs/handout.pdf). All scripts verified with a path
+                     containing a space. Docs updated to the new path.
+  2026-10-10  setup  a3-base creation (S5): untick "Proceed with Unattended Installation" (VBox 7.1 misdetects
+                     22.04 as 22.10); Use EFI stays ticked (mandatory on ARM); VM Folder ~/A3-VMs; default
+                     machine folder set with mkdir + VBoxManage setproperty machinefolder (GUI gives
+                     "Invalid settings detected" for a missing folder). S1 now uses conda env a3.
+  2026-10-11  setup  Ubuntu 22.04.5 arm64 server ISO boots to a black screen in VirtualBox on Apple Silicon
+                     (known issue; nomodeset/console=tty0 didn't help) -> dev VMs use Ubuntu Server 24.04.5
+                     arm64 (Python 3.12 in VMs; grader-version checks stay on the Mac conda env, 3.10).
+                     Clones created; transfer ISO inserted in all four. Bug B07: hdiutil makehybrid image
+                     was read by Linux via plain ISO9660 (lowercase, dotless names, TRANSFER_STAMP "missing")
+                     -> make-transfer-iso.sh now requires xorriso (-r -J, Rock Ridge: real names + exec
+                     bits); setup S1 adds brew xorriso, S6 fstab line simplified, troubleshooting rows added.

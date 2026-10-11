@@ -2,7 +2,7 @@
 # usage: sudo bash install-packages.sh [--vbox|--vmware]   (BASE VM, NAT attached)
 set -euo pipefail
 pkgs="traceroute tcpdump tshark curl wget iptables ethtool iproute2 netcat-openbsd iputils-ping python3 build-essential"
-[ "${1:-}" = --vbox ] && pkgs="$pkgs virtualbox-guest-utils"
+if [ "${1:-}" = --vbox ] && [ "$(dpkg --print-architecture)" = amd64 ]; then pkgs="$pkgs virtualbox-guest-utils"; fi
 [ "${1:-}" = --vmware ] && pkgs="$pkgs open-vm-tools"
 add-apt-repository -y multiverse >/dev/null 2>&1 || true
 apt-get update

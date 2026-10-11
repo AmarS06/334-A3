@@ -9,6 +9,6 @@
 | 5 | "Several connections of each kind": should we run several server instances on different ports? | | |
 | 6 | Is using an AI assistant for explanations/review and for non-submitted test scripts acceptable under §10? | | |
 | 7 | Are stdlib modules like argparse, select, ctypes acceptable? | | |
-| 8 | We use hypervisor shared folders (not a network link) to move code into the VMs. Is that compatible with "no connection to the host computer"? | | |
-| 9 | We develop on arm64 (Apple Silicon) Ubuntu 22.04 VMs; the grader is x86-64. Is that acceptable, and is a hypervisor shared folder (no network link) into the VMs acceptable? | | |
+| 8 | We move code into the VMs with a read-only virtual CD image (no network link, no shared folder). Is that compatible with "no connection to the host computer"? | | |
+| 9 | We develop on arm64 (Apple Silicon) Ubuntu 22.04 VMs; the grader is x86-64. Is that acceptable for development and the report screenshots? | | |
 | 10 | Can the assignment be submitted by one person (solo)? If so, is the ZIP named `A3_<entry>.zip`, and does grading or the viva change? | | |

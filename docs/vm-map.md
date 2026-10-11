@@ -1,12 +1,8 @@
 # Interface map (fill in setup.md S7)
 
 ## Hypervisor networks
-| Network | Fusion custom network (Apple Silicon) | VirtualBox internal network (x86) |
-|---|---|---|
-| LAN_A | vmnet2 | LAN_A |
-| LAN_B | vmnet3 | LAN_B |
-| LAN_C | vmnet4 | LAN_C |
-| LINK_D | vmnet5 | LINK_D |
+VirtualBox internal networks (created by `tools/vm/vbox-clone-topology.sh create`): LAN_A, LAN_B, LAN_C,
+LINK_D. Adapter type used: ____ (from `vbox-clone-topology.sh map`).
 
 
 | VM | Interface | MAC | Network | Address |

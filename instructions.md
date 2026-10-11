@@ -507,6 +507,16 @@ COL334_A3/
 └── (gitignored) .venv/ scratch/ refcorpus/ captures/ dist/ audit-out/ tests/www/
 ```
 
+## IV.1b Copies of the repo and how they stay in sync
+| Copy | Role | Synced by |
+|---|---|---|
+| `~/Desktop/COL334 A3` (Mac) | **master working copy**, git | you (edits, commits) and Claude (writes files into it) |
+| GitHub private repo | backup and history | `git push` from the Mac |
+| Claude Project "COL334 A3" → `COL334_A3/…` | mirror for reading in any Claude chat; same paths as the repo; `COL334_A3/MANIFEST.txt` lists every file incl. empty ones | Claude, when you ask "sync the project" (from the Mac folder) |
+| VMs `/mnt/a3` | read-only copy for running | `make-transfer-iso.sh` + `vbox-clone-topology.sh transfer` |
+Never commit from anywhere but the Mac copy. The Project mirror excludes `.git`, `.venv`, caches and binaries
+(the handout PDF is already a Project file).
+
 ## IV.2 Tools index (where each is first used)
 | Tool | Runs on | First used (step) |
 |---|---|---|
@@ -537,7 +547,7 @@ COL334_A3/
 ## IV.3 TA questions
 See `docs/ta-questions.md` (Q1 zip root · Q2 iptables in launchers · Q3 GRO on grading VMs ·
 Q4 per-interface forwarding · Q5 multi-instance fairness · Q6 AI-assisted tooling · Q7 stdlib modules ·
-Q8 shared folders under the isolation rule).
+Q8 transfer image / shared folders under the isolation rule).
 
 ## IV.4 Progress log
 | Date | Who | Step | Note |
@@ -1566,10 +1576,10 @@ screenshot comes from the VMs.
 ## VII.2 Host software (your laptop)
 | Tool | Needed for | Required? | Ubuntu/Debian | macOS | Windows |
 |---|---|---|---|---|---|
-| Hypervisor | the 4 VMs | **yes** | `sudo apt install virtualbox` (or Oracle's 7.x package) | Intel: `brew install --cask virtualbox`; Apple Silicon: `brew install --cask vmware-fusion` (or `utm`) | `winget install Oracle.VirtualBox` |
+| Hypervisor | the 4 VMs | **yes** | `sudo apt install virtualbox` (or Oracle's 7.x package) | `brew install --cask virtualbox` (7.1+ runs on Apple Silicon) | `winget install Oracle.VirtualBox` |
 | Ubuntu 22.04 live-server ISO | VM OS | **yes** | amd64 image from releases.ubuntu.com/22.04 | Apple Silicon: arm64 image from cdimage.ubuntu.com (grader is x86-64; see VII.4) | amd64 image |
 | Git (+ private remote) | version control | **yes** | `apt install git` | `brew install git` | `winget install Git.Git` |
-| Python 3.10 | host-side unit tests at grader version | **yes** | native on 22.04; else deadsnakes `python3.10 python3.10-venv`, or pyenv | `brew install python@3.10` or pyenv | inside WSL2 (below), or `winget install Python.Python.3.10` |
+| Python 3.10 | host-side unit tests at grader version | **yes** | native on 22.04; else deadsnakes `python3.10 python3.10-venv`, or pyenv | conda env `a3` (`conda create -n a3 python=3.10`); brew python@3.10 fails on macOS 14 | inside WSL2 (below), or `winget install Python.Python.3.10` |
 | zip / unzip | `tools/package.sh` | **yes** | `apt install zip unzip` | preinstalled | inside WSL2 |
 | Bash environment | all `tools/` scripts | **yes** | native | native (bash 3.2 is enough for most scripts; `brew install bash` for `package.sh`) | **WSL2 Ubuntu 22.04** (`wsl --install -d Ubuntu-22.04`) |
 | Wireshark | reading captures (R6, debugging) | recommended | `apt install wireshark` | `brew install --cask wireshark` | `winget install WiresharkFoundation.Wireshark` |
@@ -1599,7 +1609,7 @@ Installed on the base VM by `tools/vm/install-packages.sh --vbox` while NAT is a
 | traceroute, iputils-ping | Part A verification, R2 |
 | curl, wget | reference clients (R4, R5, fairness) |
 | netcat-openbsd | raw requests in `server-edge.sh` |
-| virtualbox-guest-utils | the `/mnt/a3` shared folder (VirtualBox only) |
+| virtualbox-guest-utils | the `/mnt/a3` shared folder (VirtualBox on Intel hosts only; Apple Silicon uses the transfer image) |
 
 ## VII.4 Creating the VMs
 ### VirtualBox (Windows, Linux, Intel Mac): scripted
@@ -1625,46 +1635,23 @@ Installed on the base VM by `tools/vm/install-packages.sh --vbox` while NAT is a
 7. HOST: `bash tools/vm/vbox-clone-topology.sh snapshot fresh`. Later:
    `… restore fresh` (fresh-boot tests) and `… snapshot netcfg-ok`.
 
-### Apple Silicon Macs (this team's host): VMware Fusion, recommended
+### Apple Silicon Macs (this team's host): VirtualBox 7.1+, adopted 2026-10-10
+The authoritative step list is `setup.md` S4–S7. Differences from the Intel path above:
+- Create `a3-base` in the VirtualBox GUI (type *Ubuntu (64-bit ARM)*, skip unattended installation);
+  `vbox-create-base.sh` refuses to run on Arm hosts on purpose.
+- **No shared folders.** Ubuntu 22.04's Arm kernel lacks the VirtualBox guest driver (it reached mainline
+  Linux only in 2025), so the repo reaches the VMs as a read-only CD image:
+  `tools/host/make-transfer-iso.sh` builds `~/A3-VMs/a3-transfer.iso` and
+  `tools/vm/vbox-clone-topology.sh transfer` inserts it into all four VMs, mounted at `/mnt/a3`.
+  `/mnt/a3` is read-only: write logs, captures and downloads to `~` or `/tmp` inside the VMs.
+- `vbox-clone-topology.sh create` reuses the base VM's adapter type (shown as *Adapter Type* in
+  Settings → Network → Advanced), so it works whichever types the Arm build offers.
+- Results go back to the Mac as screenshots or pasted text (the transfer image is one-way by design: it
+  never connects the VMs to the host).
+- arm64 VMs are allowed for development (handout §1.5 names Apple Silicon hosts); the grader runs
+  x86-64 (§6.1), so a final dry run on x86-64 is still worthwhile (Part II-B, O1).
 
-The authoritative step list is `setup.md` S4–S7; the summary below is for reference.
-
-VirtualBox scripts in this repo assume an x86-64 host and do not apply. Fusion (free) has the one thing an
-Apple Silicon host needs here: custom private networks with **no host connection and no DHCP**.
-
-1. `brew install --cask vmware-fusion`. Download the Ubuntu **22.04 arm64 live-server** ISO from
-   `cdimage.ubuntu.com/releases/22.04/release/`.
-2. Fusion → Settings → Network → add four custom networks named for LAN_A, LAN_B, LAN_C and LINK_D. For each,
-   **untick "Connect Macs to this network"** and **untick "Provide addresses on this network via DHCP"**.
-   Note which vmnet number maps to which LAN in `docs/vm-map.md`.
-3. Create `a3-base`: Ubuntu 64-bit Arm, 1 vCPU, 1 GB RAM, 10 GB disk, network "Share with my Mac" (NAT) for
-   installation only. Install Ubuntu Server (defaults; skip OpenSSH and snaps).
-4. Settings → Sharing → share the repo folder as `a3`. In the VM, mount it:
-   `sudo mkdir -p /mnt/a3 && sudo vmhgfs-fuse .host:/a3 /mnt/a3 -o allow_other`
-   (open-vm-tools is preinstalled on Ubuntu Server; if not, `sudo apt install open-vm-tools`).
-   Add `.host:/a3 /mnt/a3 fuse.vmhgfs-fuse allow_other,defaults 0 0` to `/etc/fstab`.
-5. `sudo bash /mnt/a3/tools/vm/install-packages.sh --vmware`, then `sudo bash /mnt/a3/tools/vm/seal-base.sh`,
-   then `sudo poweroff`.
-6. Take a snapshot `base-sealed`. Create **4 linked clones** (Virtual Machine → Create Linked Clone):
-   `a3-client`, `a3-r1`, `a3-r2`, `a3-server`. For each clone: remove the NAT adapter, add one network adapter
-   per LAN it belongs to (client: LAN_A, LINK_D · r1: LAN_A, LAN_B · r2: LAN_B, LAN_C, LINK_D · server: LAN_C),
-   each set to the matching custom network, and click "Advanced options → Generate" for a new MAC.
-7. Boot each clone, `sudo hostnamectl set-hostname <name>`, match MACs (`ip -br link`) to adapters, fill
-   `docs/vm-map.md`, confirm interfaces DOWN with no addresses and rp_filter=1, power off, snapshot `fresh`.
-   Later snapshots: `netcfg-ok`. Restores replace `vbox-clone-topology.sh restore`.
-
-### Apple Silicon alternative: UTM
-UTM's built-in network modes either connect to the host (Host Only, with macOS DHCP) or isolate each VM
-alone (Emulated VLAN), so neither gives a shared private LAN. Use QEMU socket networking instead: in each
-VM's QEMU arguments add one `-netdev socket,id=lanA,mcast=230.0.0.1:2001` /
-`-device virtio-net-pci,netdev=lanA,mac=<unique>` pair per LAN (ports 2001–2004 for LAN_A, LAN_B, LAN_C,
-LINK_D). This is an isolated L2 segment with no DHCP. Shared folder: VirtFS, mount with
-`sudo mount -t 9p -o trans=virtio share /mnt/a3`. UTM has no linked clones or snapshots for this; duplicate
-powered-off VMs as "fresh" copies.
-
-### Architecture caveat (any Apple Silicon setup)
-The VMs are arm64; the grader is x86-64. Python behaves the same, so development is fine, but run the
-Phase 16.4 dry run once on an x86-64 machine (lab PC or a teammate's laptop) if at all possible (TA Q9).
+The Fusion and UTM notes below are kept for reference only.
 
 ### VMware Workstation/Fusion
 Same steps as UTM, using "LAN segments" (Workstation) or custom private networks (Fusion) as the four

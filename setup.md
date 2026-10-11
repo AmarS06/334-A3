@@ -19,7 +19,7 @@ Each step ends with **Check:** lines. Don't move on until they pass.
 | S1 | Host tools (macOS) | 20 min |
 | S2 | Project folder on your Mac | 5 min |
 | S3 | Git, private remote, dev environment | 15 min |
-| S4 | Hypervisor and the four private networks | 20 min |
+| S4 | VirtualBox and the four private networks | 10 min |
 | S5 | Base VM | 40 min |
 | S6 | Four VMs from the base | 30 min |
 | S7 | Verify the fresh state and record the interface map | 20 min |
@@ -30,31 +30,59 @@ Each step ends with **Check:** lines. Don't move on until they pass.
 ---
 
 ## S0 Locations [you]
-- **Repository:** `~/developer/COL334_A3`. Disks and VMs never go inside it.
-- **VMs:** `~/A3-VMs/`.
-- **Ubuntu ISO:** `~/Downloads/`.
+- **Repository:** `~/Desktop/COL334 A3` (git, pushed to your private GitHub repo). Note the space in the
+  name: in Terminal always write `~/Desktop/"COL334 A3"`. Disks and VMs never go
+  inside it.
+- **Ubuntu ISO:** `~/Downloads/ubuntu-24.04.x-live-server-arm64.iso` (24.04, not 22.04: see S1).
+- **VMs:** `~/A3-VMs/`, laid out exactly like this once S4–S7 are done:
+
+```
+~/A3-VMs/
+├── a3-base/        Ubuntu install + packages, sealed; snapshot "base-sealed"; never booted again after S6
+├── a3-client/      linked clone · adapters LAN_A, LINK_D        · snapshots "fresh", later "netcfg-ok"
+├── a3-r1/          linked clone · adapters LAN_A, LAN_B         · snapshots "fresh", later "netcfg-ok"
+├── a3-r2/          linked clone · adapters LAN_B, LAN_C, LINK_D · snapshots "fresh", later "netcfg-ok"
+├── a3-server/      linked clone · adapters LAN_C                · snapshots "fresh", later "netcfg-ok"
+└── a3-transfer.iso read-only CD image of the repo (rebuilt by tools/host/make-transfer-iso.sh)
+```
+  VirtualBox creates each VM's folder (`.vbox` settings file, disk, `Snapshots/`, `Logs/`). Linked clones
+  store only their differences from `a3-base`, so don't delete or move `a3-base`. LAN_A, LAN_B, LAN_C and
+  LINK_D are internal-network names, not folders.
+- **Inside every VM:**
+
+| Path | What | Writable |
+|---|---|---|
+| `/mnt/a3` | the repo, from the transfer image (`cat /mnt/a3/TRANSFER_STAMP` shows the build) | no |
+| `~/www` | server docroot from `tools/test/gen-www.sh ~/www` (SERVER; any VM for local tests) | yes |
+| `~/runs` | your logs, downloads, captures, traces (`mkdir -p ~/runs`) | yes |
+| `/tmp` | scratch for test scripts | yes |
 
 ## S1 Host tools (macOS, Apple Silicon) [you]
 1. If Homebrew is missing, install it from brew.sh. Then in Terminal:
    ```
-   brew install git bash python@3.10 grep gnu-sed coreutils zip
+   brew install git bash grep gnu-sed coreutils zip xorriso
+   conda create -n a3 python=3.10 -y && conda activate a3
    ```
    - **bash, grep, gnu-sed, coreutils:** the repo's host scripts need bash ≥ 4 and GNU grep/sed. They find
      these automatically through `tools/host/gnu-path.sh`. Your login shell is unchanged.
-   - **python@3.10:** matches the grader's Python 3.10. Use it for unit tests, not your Anaconda Python.
-2. Download the **Ubuntu Server 22.04 arm64** ISO (the newest `22.04.x`, file name ending
-   `live-server-arm64.iso`) from `https://cdimage.ubuntu.com/releases/22.04/release/` into `~/Downloads`.
+   - **conda env `a3` (Python 3.10):** matches the grader's Python 3.10. Homebrew's `python@3.10` fails to
+     build on macOS 14, so use conda. Run `conda activate a3` before `setup-dev.sh` and before committing.
+2. Download the **Ubuntu Server 24.04 arm64** ISO (the newest `24.04.x`, file name ending
+   `live-server-arm64.iso`, not `desktop-arm64.iso`) from `https://cdimage.ubuntu.com/releases/24.04/release/`
+   into `~/Downloads`. The 22.04 arm64 server ISO boots to a black screen in VirtualBox on Apple Silicon.
+   The grader uses 22.04 x86-64 with Python 3.10; the code only needs the standard library, iproute2 and
+   iptables, which behave the same, and the Mac's conda env keeps you honest on Python 3.10.
    Verify it with `shasum -a 256` against that page's `SHA256SUMS`.
 
 **Check:**
-- `python3.10 --version` prints 3.10.x;
+- `conda activate a3 && python --version` prints 3.10.x;
 - `/opt/homebrew/bin/bash --version` prints 5.x;
 - `ggrep --version` prints GNU grep.
 
 ## S2 Project folder [Claude] (done 2026-10-10)
-Claude places the project at `~/developer/COL334_A3` once you approve folder access to `~/developer`.
+The project lives at `~/Desktop/COL334 A3` (moved there from `~/developer/COL334_A3` on 2026-10-10).
 
-**Check:** `ls ~/developer/COL334_A3` shows `README.md`, `SPEC.md`, `setup.md`, `instructions.md`, `src/`
+**Check:** `ls ~/Desktop/"COL334 A3"` shows `README.md`, `SPEC.md`, `setup.md`, `instructions.md`, `src/`
 and `tools/`.
 
 ## S3 Git, private remote, dev environment [you]
@@ -62,7 +90,7 @@ and `tools/`.
    history; nobody else needs access.
 2. In Terminal:
    ```
-   cd ~/developer/COL334_A3
+   cd ~/Desktop/"COL334 A3"
    git init -b main
    git config user.name "<your name>"; git config user.email "<your email>"
    bash tools/host/setup-dev.sh
@@ -79,52 +107,65 @@ and `tools/`.
 - the commit succeeded, which means the hook ran;
 - the remote shows the files.
 
-## S4 Hypervisor and private networks [you]
-VMware Fusion is used on Apple Silicon because it offers private networks with no host connection and no
-DHCP, which handout §1.5 requires. VirtualBox doesn't run arm64 guests well, and UTM can't make a shared
-private LAN without hand-written QEMU arguments.
+## S4 VirtualBox and the private networks [you]
+VirtualBox 7.1 and newer run on Apple Silicon and give **internal networks**: VM-only segments with no
+host connection and no DHCP, which handout §1.5 requires.
 
-1. Download **VMware Fusion Pro** (free for personal use) from Broadcom's support portal. A free Broadcom
-   account is required. Install it and allow its system extensions if macOS asks.
-2. Fusion → Settings → **Network** → unlock → **+** four times. For each new custom network
-   (vmnet2–vmnet5):
-   - **untick** "Connect Macs to this network"
-   - **untick** "Provide addresses on this network via DHCP"
-   - set the subnet to anything; it's ignored because there is no DHCP
-3. Record the mapping in `docs/vm-map.md`: vmnet2 = LAN_A, vmnet3 = LAN_B, vmnet4 = LAN_C,
-   vmnet5 = LINK_D.
+1. `brew install --cask virtualbox` (a ready-made app, so nothing is compiled), then open VirtualBox once.
+   Allow anything macOS asks for (System Settings → Privacy & Security). `VBoxManage --version` must print
+   7.1 or newer.
+2. There's nothing to create for the networks: an internal network appears as soon as a VM adapter names
+   it. We use the names **LAN_A, LAN_B, LAN_C, LINK_D** (S6 does this).
+3. Confirm no DHCP server is attached to those names: `VBoxManage list dhcpservers` must not mention them.
 
-**Check:** `check-host.sh` now shows `hypervisor OK`, and all four networks appear with both boxes unticked.
+**Check:** `bash tools/host/check-host.sh` shows `hypervisor OK`.
 
 ## S5 Base VM `a3-base` [you]
-1. Fusion → New → install from the Ubuntu ISO → Linux / **Ubuntu 64-bit Arm**. Customize:
-   - 1 processor core, **1024 MB** memory, **10 GB** disk
-   - network: **Share with my Mac** (NAT). This is for installation only and is removed in S6.
-   - Sharing → enable shared folders → add `~/developer/COL334_A3` named **`a3`** (read and write)
-   - save as `~/A3-VMs/a3-base`
-2. Ubuntu installer choices:
-   - English, default keyboard, **Ubuntu Server** (not minimized), default network (DHCP), no proxy,
-     default mirror
-   - use the entire disk (no LVM changes needed)
+1. VirtualBox → **New**:
+   - Name `a3-base`, VM Folder `/Users/<you>/A3-VMs`, ISO image: the `ubuntu-24.04.x-live-server-arm64.iso`
+   - **untick "Proceed with Unattended Installation"** (VirtualBox 7.1 wording; older versions say "tick
+     Skip Unattended Installation"). Its automated install is unreliable on arm64.
+   - Once unticked: Type Linux, Version **Ubuntu 24.04 LTS (Noble) (ARM 64-bit)** (or plain Ubuntu ARM
+     64-bit). This only picks VirtualBox defaults.
+   - Hardware: **1024 MB**, **1 CPU**, **Use EFI ticked** (mandatory on ARM; often greyed out and already
+     on); Hard disk: **10 GB**, VDI
+   - Make the clones land in the same folder: `mkdir -p ~/A3-VMs` then
+     `VBoxManage setproperty machinefolder "$HOME/A3-VMs"` (check with
+     `VBoxManage list systemproperties | grep -i "machine folder"`). Typing a not-yet-existing path in
+     VirtualBox → Settings → General → Default Machine Folder gives "Invalid settings detected"; create the
+     folder first, or pick it via the dropdown → Other…. Skipping this is harmless: clones then go to
+     `~/VirtualBox VMs` instead.
+2. Settings → **Network → Adapter 1**: attached to **NAT** (installation only; removed in S6). Note the
+   *Adapter Type* shown under Advanced; the clones reuse it.
+3. Start the VM and install Ubuntu Server:
+   - English, default keyboard, **Ubuntu Server** (not minimized)
+   - default network (DHCP on the NAT adapter), no proxy, default mirror
+   - use the entire disk
    - user `a3`, a password you'll remember, hostname `a3-base`
    - **do not** install OpenSSH and **no** snaps
-   Reboot when done (if prompted, remove the ISO via Fusion → Virtual Machine → CD/DVD → Disconnect).
-3. Log in as `a3`, then:
+
+   Reboot when it says so. If it asks to remove the install medium, just press Enter.
+4. **Getting the repo into the VM (transfer image):** on the **Mac**, in `~/Desktop/COL334 A3`:
    ```
-   sudo apt-get update && sudo apt-get install -y open-vm-tools
+   bash tools/host/make-transfer-iso.sh
+   ```
+   This builds `~/A3-VMs/a3-transfer.iso`, a read-only CD image of the repo (xorriso, with Rock Ridge so the VM
+   sees real file names and execute bits; macOS `hdiutil` images show up lowercased and dotless). In VirtualBox, open `a3-base` →
+   Settings → **Storage** → click the optical drive → choose that file (replacing the Ubuntu ISO).
+   Shared folders are **not** used: no VirtualBox guest additions for Arm Linux guests are set up here.
+5. In the VM, log in as `a3`, then:
+   ```
    sudo mkdir -p /mnt/a3
-   echo '.host:/a3 /mnt/a3 fuse.vmhgfs-fuse allow_other,defaults,nofail 0 0' | sudo tee -a /etc/fstab
-   sudo mount -a && ls /mnt/a3
-   sudo bash /mnt/a3/tools/vm/install-packages.sh --vmware
+   sudo mount -o ro,mode=0555,dmode=0555 /dev/sr0 /mnt/a3 && cat /mnt/a3/TRANSFER_STAMP
+   sudo bash /mnt/a3/tools/vm/install-packages.sh
    sudo bash /mnt/a3/tools/vm/seal-base.sh
    sudo poweroff
    ```
    - **install-packages.sh:** installs python3, iproute2, iptables, ethtool, tcpdump, tshark, traceroute,
      curl, wget and netcat, and prints the Python and gcc versions.
-   - **seal-base.sh:** turns off cloud-init networking, moves the installer's netplan file aside so that
-     **no interface is configured at boot**, masks the 2-minute "wait for network" boot delay, and persists
-     `rp_filter=1` on every interface (the handout's baseline).
-4. Fusion → Virtual Machine → Snapshots → take snapshot **`base-sealed`**.
+   - **seal-base.sh:** turns off cloud-init, moves the installer's netplan file aside so that **no interface
+     is configured at boot**, masks the 2-minute "wait for network" boot delay, and persists `rp_filter=1`
+     on every interface (the handout's baseline).
 
 **Check, after booting the base once more and logging in:**
 - `python3 --version` prints 3.10.x;
@@ -133,29 +174,36 @@ private LAN without hand-written QEMU arguments.
 
 Then power off.
 
-## S6 Four VMs from the base [you]
-For each of `a3-client`, `a3-r1`, `a3-r2` and `a3-server`:
-1. Fusion: select `a3-base` → Virtual Machine → **Create Linked Clone** from `base-sealed` → save as
-   `~/A3-VMs/a3-<name>`.
-2. Clone settings → Network Adapter:
-   - **remove** the NAT adapter
-   - **Add Device → Network Adapter** once per network, each set to its custom vmnet:
+## S6 Four VMs from the base [you, on the Mac]
+```
+cd ~/Desktop/"COL334 A3"
+bash tools/vm/vbox-clone-topology.sh create
+bash tools/vm/vbox-clone-topology.sh transfer
+```
+- **create:** takes snapshot `base-sealed` and makes four linked clones, `a3-client`, `a3-r1`, `a3-r2` and
+  `a3-server`. It removes the NAT adapter and attaches internal networks (client: LAN_A, LINK_D ·
+  r1: LAN_A, LAN_B · r2: LAN_B, LAN_C, LINK_D · server: LAN_C) with fresh MACs, then warns if a DHCP
+  server is attached to any of them.
+- **transfer:** inserts the transfer image into all four.
 
-     | VM | Adapters, in this order |
-     |---|---|
-     | a3-client | LAN_A, LINK_D |
-     | a3-r1 | LAN_A, LAN_B |
-     | a3-r2 | LAN_B, LAN_C, LINK_D |
-     | a3-server | LAN_C |
-
-   - Under each adapter's **Advanced options**, click **Generate** so every MAC is unique.
-3. Keep the shared folder `a3`.
-4. Boot, log in, then run `sudo hostnamectl set-hostname <client|r1|r2|server>` and `sudo reboot`.
+Then start each clone, log in, and run:
+```
+sudo hostnamectl set-hostname client    # r1, r2 or server in the other VMs
+sudo mkdir -p /mnt/a3
+grep -q /mnt/a3 /etc/fstab || echo '/dev/sr0 /mnt/a3 iso9660 ro,nofail 0 0' | sudo tee -a /etc/fstab
+sudo reboot
+```
 
 **Check, in each VM:**
 - `hostname` is correct;
-- `ls /mnt/a3` works;
+- `cat /mnt/a3/TRANSFER_STAMP` works;
 - `ip -br link` lists exactly the expected number of non-`lo` interfaces.
+
+**Updating the code in the VMs later** (after you or Claude change files on the Mac):
+1. Mac: `bash tools/host/make-transfer-iso.sh && bash tools/vm/vbox-clone-topology.sh transfer`
+2. Each VM: `sudo umount /mnt/a3; sudo mount /mnt/a3 && cat /mnt/a3/TRANSFER_STAMP`
+
+`/mnt/a3` is read-only, so write logs, captures and downloads to `~` or `/tmp`, never into `/mnt/a3`.
 
 ## S7 Verify the fresh state and record the interface map [you]
 1. In each VM, run:
@@ -163,11 +211,13 @@ For each of `a3-client`, `a3-r1`, `a3-r2` and `a3-server`:
    ip -br link; ip -br addr; ip route; sysctl -a 2>/dev/null | grep -E '\.rp_filter'
    ```
    **Expected:** every non-`lo` interface DOWN with no IPv4 address; no routes; every rp_filter = 1.
-   Any address or route means DHCP leaked in (repeat S5 step 3 / S4 step 2).
-2. Match each interface's MAC (`ip -br link`) to Fusion's adapter MAC (Settings → Network Adapter →
-   Advanced) and fill `docs/vm-map.md`.
-3. Power everything off. Take snapshot **`fresh`** on each VM.
-4. Screenshot each VM's Network Adapter settings into `report/screenshots/R1/` (report item R1).
+   Any address or route means DHCP leaked in (check S4 step 3 and that S5's seal ran).
+2. Mac: `bash tools/vm/vbox-clone-topology.sh map` lists each adapter's MAC and network. Match those to
+   `ip -br link` in each VM (Linux prints MACs with colons and lower case) and fill `docs/vm-map.md`.
+3. Power everything off, then on the Mac: `bash tools/vm/vbox-clone-topology.sh snapshot fresh`.
+   Later: `… restore fresh` (fresh-boot tests) and `… snapshot netcfg-ok`.
+4. Screenshot each VM's Settings → Network page (all adapters) into `report/screenshots/R1/` (report
+   item R1).
 5. Isolation check (one-time, in any two VMs on the same network):
    `sudo ip addr add 10.99.0.1/24 dev <IF> && sudo ip link set <IF> up` on one, `.2` on the other, then
    `ping -c2` between them. It must work. `ping 8.8.8.8` must fail. Restore `fresh` afterwards.
@@ -193,7 +243,7 @@ Phase 0 can start.**
 
 ### O1 Teammate's machine
 Only if you work with a partner (two-person split: `instructions.md` Part II-B.1).
-- **Apple Silicon Mac:** S1, then `git clone <private-repo-URL> ~/developer/COL334_A3`, then
+- **Apple Silicon Mac:** S1, then `git clone <private-repo-URL> ~/Desktop/"COL334 A3"`, then
   `bash tools/host/setup-dev.sh`. They don't need VMs if all VM work happens on your Mac.
 - **Any other OS:** Git, Python 3.10 and zip (on Windows, inside WSL2 Ubuntu 22.04), clone, then
   `bash tools/host/setup-dev.sh`.
@@ -222,10 +272,14 @@ the VMs.
 ## Troubleshooting
 | Symptom | Fix |
 |---|---|
-| `/mnt/a3` empty after boot | `sudo apt install open-vm-tools`; check the shared folder is enabled and named `a3`; `sudo mount -a` |
-| A clone gets an IPv4 address at boot | the S4 DHCP box is still ticked, or S5 seal didn't run: restore `base-sealed`, re-seal, re-clone |
+| `/mnt/a3` empty after boot | the transfer image isn't inserted: Mac `bash tools/vm/vbox-clone-topology.sh transfer`, then in the VM `sudo mount /mnt/a3` |
+| `mount: /dev/sr0: no medium found` | the optical drive is empty; insert the image (row above) |
+| `ls /mnt/a3` shows lowercase names (`readme.md`, `gitignore`), `TRANSFER_STAMP` "not found" | image built without Rock Ridge: `brew install xorriso`, rebuild with `make-transfer-iso.sh`, `vbox-clone-topology.sh transfer`, then in the VM `sudo umount /mnt/a3; sudo mount /mnt/a3` |
+| `mount: can't find in /etc/fstab` | fstab line mistyped (check spaces, leading `/`, one line): `sudo sed -i '\#/mnt/a3#d' /etc/fstab` and re-add the S6 line |
+| Old code in a VM | rebuild and re-insert the image (S6 "Updating the code"); `cat /mnt/a3/TRANSFER_STAMP` shows its build time |
+| A clone gets an IPv4 address at boot | a DHCP server is attached to an A3 network (`VBoxManage list dhcpservers`), or S5 seal didn't run: restore `base-sealed`, re-seal, re-clone |
 | Boot hangs ~2 min on "wait for network" | `sudo systemctl mask systemd-networkd-wait-online.service` (seal-base does this) |
 | Pre-commit hook says "compliance check failed" | read its output; it lists the forbidden API or rule (SPEC §1.5) |
 | `package.sh`: `mapfile: command not found` | `brew install bash` (the script re-runs itself under bash ≥ 4) |
-| Clones share a MAC | Advanced options → Generate on every adapter of every clone |
+| Clones share a MAC | `vbox-clone-topology.sh create` sets `--macaddress auto`; if needed, Settings → Network → Advanced → refresh MAC |
 | Our client never completes the handshake; `A3_TRACE=/tmp/t.jsonl` shows `bad-tcp-csum` drops | checksum offload on a virtual link: `sudo ethtool -K <IF> tx off` on the **sending** VM (see instructions.md G3) |
