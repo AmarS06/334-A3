@@ -9,7 +9,14 @@ from settings import Settings
 from web.content import ERROR_PAGES, head, kind_of
 from web.fetch import build_request, converse
 from web.parsing import (
-    BodyPiece, Done, Incomplete, Malformed, Oversize, RequestHeadReader, ResponseReader, StatusLine,
+    BodyPiece,
+    Done,
+    Incomplete,
+    Malformed,
+    Oversize,
+    RequestHeadReader,
+    ResponseReader,
+    StatusLine,
 )
 from web.serve import judge, respond
 from web.urlparts import UrlError, split_url
@@ -27,9 +34,26 @@ GOOD_URLS = [
     ("http://server/", ("server", 80, "/", "server")),
 ]
 BAD_URLS = [
-    "", "https://h/", "ftp://h/", "h/x", "http://", "http:///x", "http://h:/", "http://h:0/",
-    "http://h:65536/", "http://h:123456/", "http://h:8x/", "http://u@h/", "http://[::1]/", "http://h?x",
-    "http://h#x", "http://h/a b", "http://h/\x01", "http://h:-1/", "http://:80/", "http://h:8080:9/",
+    "",
+    "https://h/",
+    "ftp://h/",
+    "h/x",
+    "http://",
+    "http:///x",
+    "http://h:/",
+    "http://h:0/",
+    "http://h:65536/",
+    "http://h:123456/",
+    "http://h:8x/",
+    "http://u@h/",
+    "http://[::1]/",
+    "http://h?x",
+    "http://h#x",
+    "http://h/a b",
+    "http://h/\x01",
+    "http://h:-1/",
+    "http://:80/",
+    "http://h:8080:9/",
 ]
 
 
@@ -46,8 +70,10 @@ class Urls(unittest.TestCase):
                     split_url(url)
 
     def test_request_bytes(self):
-        self.assertEqual(build_request(split_url("http://10.10.3.10:8080/a?b")),
-                         b"GET /a?b HTTP/1.1\r\nHost: 10.10.3.10:8080\r\nConnection: close\r\n\r\n")
+        self.assertEqual(
+            build_request(split_url("http://10.10.3.10:8080/a?b")),
+            b"GET /a?b HTTP/1.1\r\nHost: 10.10.3.10:8080\r\nConnection: close\r\n\r\n",
+        )
 
 
 def collect(raw, step=None, eof=True):
@@ -57,7 +83,7 @@ def collect(raw, step=None, eof=True):
         events += reader.feed(raw)
     else:
         for i in range(0, len(raw), step):
-            events += reader.feed(raw[i:i + step])
+            events += reader.feed(raw[i : i + step])
     if eof:
         events += reader.at_eof()
     body = b"".join(e.data for e in events if isinstance(e, BodyPiece))
@@ -70,7 +96,7 @@ BODY = bytes(range(256)) * 20
 def chunk(body, ext=b""):
     out = b""
     for i in range(0, len(body), 333):
-        piece = body[i:i + 333]
+        piece = body[i : i + 333]
         out += b"%x%s\r\n%s\r\n" % (len(piece), ext, piece)
     return out + b"0\r\n"
 
@@ -87,8 +113,11 @@ class Responses(unittest.TestCase):
         self.check(b"HTTP/1.1 200 OK\r\nContent-Length: %d\r\n\r\n" % len(BODY) + BODY)
 
     def test_chunked_with_extensions_and_trailers(self):
-        self.check(b"HTTP/1.1 200 OK\r\nTransfer-Encoding: gzip, chunked\r\n\r\n" + chunk(BODY, b";a=b")
-                   + b"X-T: 1\r\n\r\n")
+        self.check(
+            b"HTTP/1.1 200 OK\r\nTransfer-Encoding: gzip, chunked\r\n\r\n"
+            + chunk(BODY, b";a=b")
+            + b"X-T: 1\r\n\r\n"
+        )
 
     def test_chunked_beats_length(self):
         head_part = b"HTTP/1.1 200 OK\r\nContent-Length: 5\r\nTransfer-Encoding: chunked\r\n\r\n"
@@ -122,11 +151,14 @@ class Responses(unittest.TestCase):
             collect(b"HTTP/1.1 200 OK\r\nContent-Length: 10\r\n\r\nabc")
 
     def test_malformed(self):
-        for raw in (b"HTTX/1.1 200 OK\r\n\r\n", b"HTTP/1.1 2000 OK\r\n\r\n",
-                    b"HTTP/1.1 200 OK\r\nContent-Length: 1, 2\r\n\r\n",
-                    b"HTTP/1.1 200 OK\r\nContent-Length: -1\r\n\r\n",
-                    b"HTTP/1.1 200 OK\r\nbad header\r\n\r\n",
-                    b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\nxyz\r\n"):
+        for raw in (
+            b"HTTX/1.1 200 OK\r\n\r\n",
+            b"HTTP/1.1 2000 OK\r\n\r\n",
+            b"HTTP/1.1 200 OK\r\nContent-Length: 1, 2\r\n\r\n",
+            b"HTTP/1.1 200 OK\r\nContent-Length: -1\r\n\r\n",
+            b"HTTP/1.1 200 OK\r\nbad header\r\n\r\n",
+            b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\nxyz\r\n",
+        ):
             with self.subTest(raw=raw):
                 with self.assertRaises(Malformed):
                     collect(raw)
@@ -152,20 +184,40 @@ class Server(unittest.TestCase):
         self.root = tempfile.mkdtemp()
         os.makedirs(os.path.join(self.root, "sub"))
         os.makedirs(os.path.join(self.root, "empty"))
-        for name, data in (("index.html", b"<h1>i</h1>"), ("sub/index.html", b"s"), ("a.TXT", b"t"),
-                           ("noext", b"n"), (".html", b"d")):
+        for name, data in (
+            ("index.html", b"<h1>i</h1>"),
+            ("sub/index.html", b"s"),
+            ("a.TXT", b"t"),
+            ("noext", b"n"),
+            (".html", b"d"),
+        ):
             with open(os.path.join(self.root, name), "wb") as handle:
                 handle.write(data)
 
     def test_rule_order(self):
         cases = {
-            "GET / HTTP/1.1": 200, "GET /sub HTTP/1.1": 200, "GET /sub/ HTTP/1.1": 200,
-            "HEAD /a.TXT?x=../ HTTP/1.0": 200, "GET /index.html?a=1 HTTP/1.1": 200,
-            "GET x HTTP/1.1": 400, "GET  / HTTP/1.1": 400, "GET / HTTP/1.1 ": 400, "GET / HTTP/11": 400,
-            "GET / http/1.1": 400, "G(T / HTTP/1.1": 400, "": 400, "GET /": 400,
-            "POST / HTTP/1.1": 501, "get / HTTP/1.1": 501, "FOO /../x HTTP/1.1": 501,
-            "GET /../x HTTP/1.1": 403, "GET /sub/.. HTTP/1.1": 403, "GET /a/../b HTTP/1.1": 403,
-            "GET /missing HTTP/1.1": 404, "GET /empty/ HTTP/1.1": 404, "GET /a%2etxt HTTP/1.1": 404,
+            "GET / HTTP/1.1": 200,
+            "GET /sub HTTP/1.1": 200,
+            "GET /sub/ HTTP/1.1": 200,
+            "HEAD /a.TXT?x=../ HTTP/1.0": 200,
+            "GET /index.html?a=1 HTTP/1.1": 200,
+            "GET x HTTP/1.1": 400,
+            "GET  / HTTP/1.1": 400,
+            "GET / HTTP/1.1 ": 400,
+            "GET / HTTP/11": 400,
+            "GET / http/1.1": 400,
+            "G(T / HTTP/1.1": 400,
+            "": 400,
+            "GET /": 400,
+            "POST / HTTP/1.1": 501,
+            "get / HTTP/1.1": 501,
+            "FOO /../x HTTP/1.1": 501,
+            "GET /../x HTTP/1.1": 403,
+            "GET /sub/.. HTTP/1.1": 403,
+            "GET /a/../b HTTP/1.1": 403,
+            "GET /missing HTTP/1.1": 404,
+            "GET /empty/ HTTP/1.1": 404,
+            "GET /a%2etxt HTTP/1.1": 404,
             "GET /..x HTTP/1.1": 404,
         }
         for line, code in cases.items():
@@ -174,11 +226,21 @@ class Server(unittest.TestCase):
 
     def test_types(self):
         expect = {
-            "a.html": "text/html", "a.HTM": "text/html", "a.txt": "text/plain", "a.css": "text/css",
-            "a.js": "application/javascript", "a.json": "application/json", "a.png": "image/png",
-            "a.JPG": "image/jpeg", "a.jpeg": "image/jpeg", "a.gif": "image/gif", "a.pdf": "application/pdf",
-            "a.bin": "application/octet-stream", "noext": "application/octet-stream",
-            ".html": "application/octet-stream", "/x/y.tar.gz": "application/octet-stream",
+            "a.html": "text/html",
+            "a.HTM": "text/html",
+            "a.txt": "text/plain",
+            "a.css": "text/css",
+            "a.js": "application/javascript",
+            "a.json": "application/json",
+            "a.png": "image/png",
+            "a.JPG": "image/jpeg",
+            "a.jpeg": "image/jpeg",
+            "a.gif": "image/gif",
+            "a.pdf": "application/pdf",
+            "a.bin": "application/octet-stream",
+            "noext": "application/octet-stream",
+            ".html": "application/octet-stream",
+            "/x/y.tar.gz": "application/octet-stream",
         }
         for name, ctype in expect.items():
             with self.subTest(name=name):
@@ -193,7 +255,7 @@ class Server(unittest.TestCase):
         get = self.response(b"GET / HTTP/1.1\r\nHost: x\r\n\r\n")
         head_only = self.response(b"HEAD / HTTP/1.1\r\nHost: x\r\n\r\n")
         self.assertTrue(get.startswith(head_only))
-        self.assertEqual(get[len(head_only):], b"<h1>i</h1>")
+        self.assertEqual(get[len(head_only) :], b"<h1>i</h1>")
         self.assertIn(b"Content-Length: 10\r\n", head_only)
         self.assertIn(b"Connection: close\r\n", head_only)
 
@@ -218,8 +280,9 @@ class Server(unittest.TestCase):
             reader.feed(b"GET / HTTP/1.1\r\n" + b"X: y\r\n" * 50)
 
     def test_head_format(self):
-        expected = (b"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 5\r\n"
-                    b"Connection: close\r\n\r\n")
+        expected = (
+            b"HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 5\r\nConnection: close\r\n\r\n"
+        )
         self.assertEqual(head(200, 5, "text/plain"), expected)
 
 

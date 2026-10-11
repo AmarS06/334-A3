@@ -45,8 +45,13 @@ class Transfers(unittest.TestCase):
         self.assertTrue(sim.client.drops or sim.server.drops)
 
     def test_sequence_wrap(self):
-        sim = Sim(seed=5, response=MEG, client_isn=(1 << 32) - 3000, server_isn=(1 << 32) - 400000,
-                  backward=lossy(0.02, 0.2))
+        sim = Sim(
+            seed=5,
+            response=MEG,
+            client_isn=(1 << 32) - 3000,
+            server_isn=(1 << 32) - 400000,
+            backward=lossy(0.02, 0.2),
+        )
         self.check(sim.run(limit=600), clean=False)
 
     def test_bottleneck(self):
@@ -94,6 +99,7 @@ class Failures(unittest.TestCase):
             node = sim.server
             seq = node.endpoint.outbound.snd_nxt
             sim.emit(node, SegmentIntent(seq, None, RST, False, b""))
+
         sim = Sim(seed=13, response=MEG, hooks=[(0.05, strike)]).run(limit=30)
         self.assertIs(sim.client.failure, Reset)
 
@@ -102,6 +108,7 @@ class Failures(unittest.TestCase):
             node = sim.server
             seq = node.endpoint.outbound.snd_nxt + 5000
             sim.emit(node, SegmentIntent(seq, None, RST, False, b""))
+
         sim = Sim(seed=14, response=MEG, hooks=[(0.05, stray)]).run(limit=30)
         self.assertIsNone(sim.client.failure)
         self.assertEqual(bytes(sim.client.inbox), sim.response)
@@ -117,6 +124,7 @@ class Failures(unittest.TestCase):
 
         def cut(sim):
             sim.forward.blackouts = [(sim.now, 1e9)]
+
         sim = Sim(seed=16, response=b"y" * 3000, hooks=[(fin_time + 1e-6, cut)]).run(limit=60)
         self.assertIs(sim.server.finished, False)
         self.assertLessEqual(sim.now - fin_time, 2.05)

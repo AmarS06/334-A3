@@ -14,7 +14,7 @@ from packets.tcpwire import scan_mss
 def rfc1071(data):
     if len(data) % 2:
         data += b"\x00"
-    total = sum(int.from_bytes(data[i:i + 2], "big") for i in range(0, len(data), 2))
+    total = sum(int.from_bytes(data[i : i + 2], "big") for i in range(0, len(data), 2))
     while total >> 16:
         total = (total & 0xFFFF) + (total >> 16)
     return (~total) & 0xFFFF
@@ -46,7 +46,7 @@ class Checksum(unittest.TestCase):
 
 class Sequence(unittest.TestCase):
     def test_wrap_unwrap(self):
-        for reference in (0, 1 << 31, (1 << 32) - 1, (1 << 32) + 5, 10 ** 12):
+        for reference in (0, 1 << 31, (1 << 32) - 1, (1 << 32) + 5, 10**12):
             for delta in (-(1 << 31) + 1, -1, 0, 1, (1 << 31) - 1):
                 self.assertEqual(unwrap(wrap(reference + delta), reference), reference + delta)
 
@@ -77,9 +77,11 @@ class Codec(unittest.TestCase):
 
     def test_log_line(self):
         record = screen(build(SegmentIntent(1000, None, SYN, True, b"")), Anything())
-        self.assertRegex(render("SEND", record),
-                         r"^SEND 10\.10\.1\.10:62000 > 10\.10\.3\.10:8080 ttl=64 id=\d+ seq=1000 ack=0 "
-                         r"flags=0x02 win=65535 len=0 mss=1460$")
+        self.assertRegex(
+            render("SEND", record),
+            r"^SEND 10\.10\.1\.10:62000 > 10\.10\.3\.10:8080 ttl=64 id=\d+ seq=1000 ack=0 "
+            r"flags=0x02 win=65535 len=0 mss=1460$",
+        )
 
 
 class Gates(unittest.TestCase):

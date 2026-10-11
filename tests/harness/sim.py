@@ -13,8 +13,19 @@ from settings import Settings
 
 
 class Channel:
-    def __init__(self, rng, loss=0.0, reorder=0.0, duplicate=0.0, delay=0.01, rate=None, queue_bytes=None,
-                 blackouts=(), drop_first=0, mangle=0.0):
+    def __init__(
+        self,
+        rng,
+        loss=0.0,
+        reorder=0.0,
+        duplicate=0.0,
+        delay=0.01,
+        rate=None,
+        queue_bytes=None,
+        blackouts=(),
+        drop_first=0,
+        mangle=0.0,
+    ):
         self.rng = rng
         self.loss = loss
         self.reorder = reorder
@@ -53,7 +64,7 @@ class Channel:
             data = packet
             if self.rng.random() < self.mangle:
                 spot = self.rng.randrange(len(packet))
-                data = packet[:spot] + bytes([packet[spot] ^ 0x40]) + packet[spot + 1:]
+                data = packet[:spot] + bytes([packet[spot] ^ 0x40]) + packet[spot + 1 :]
             arrivals.append((leave + self.delay + extra, data))
         return arrivals
 
@@ -86,9 +97,20 @@ class Node:
 
 
 class Sim:
-    def __init__(self, seed=1, settings=None, forward=None, backward=None, client_isn=None, server_isn=None,
-                 request=b"GET / HTTP/1.1\r\n\r\n", response=b"x" * 100000, server_closes_first=True,
-                 refuse=False, hooks=()):
+    def __init__(
+        self,
+        seed=1,
+        settings=None,
+        forward=None,
+        backward=None,
+        client_isn=None,
+        server_isn=None,
+        request=b"GET / HTTP/1.1\r\n\r\n",
+        response=b"x" * 100000,
+        server_closes_first=True,
+        refuse=False,
+        hooks=(),
+    ):
         self.rng = random.Random(seed)
         self.settings = settings or Settings()
         self.forward = Channel(self.rng, **(forward or {}))
@@ -185,8 +207,11 @@ class Sim:
         if not self.server_closes_first and server.eof and self.answered and not self.server_closed:
             self.server_closed = True
             self.apply(server, server.endpoint.wind_down(self.now))
-        if (not self.server_closes_first and len(client.inbox) >= len(self.response)
-                and not self.client_closed):
+        if (
+            not self.server_closes_first
+            and len(client.inbox) >= len(self.response)
+            and not self.client_closed
+        ):
             self.client_closed = True
             self.apply(client, client.endpoint.wind_down(self.now))
 

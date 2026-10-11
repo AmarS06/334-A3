@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# usage: python3 chunked-server.py [PORT=8001]   (serves /chunked /trailers /close /length /bad /truncated /204)
+# usage: python3 chunked-server.py [PORT=8001]   (/chunked /trailers /close /length /bad /truncated /204)
 import socket
 import sys
 

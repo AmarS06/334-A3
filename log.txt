@@ -326,3 +326,9 @@ Sections
                      16:44:28). Interface map (adapter 82540EM): client enp0s8=LAN_A enp0s9=LINK_D; r1
                      enp0s8=LAN_A enp0s9=LAN_B; r2 enp0s8=LAN_B enp0s9=LAN_C enp0s10=LINK_D; server
                      enp0s8=LAN_C. docs/vm-map.md complete. Left: isolation ping, R1 shots, `fresh` snapshot.
+  2026-10-12  audit  Reference conformance audit vs SPEC: layout = §1.4 exactly; I1 (socket/select/time only in
+                     driver/), I2 (no randomness in core/packets), I4 (only UDP-helper connect), I5, I6 (no
+                     comments), I7 (stdout only in fetch sink) all hold; §1.6 naming: `base` found in 3 files
+                     and renamed (SPEC 16). Re-verified: unit 47/47 on Python 3.10, every file parses as 3.10,
+                     ruff clean, 4-namespace e2e big.html/1M/10M MATCH, 5% loss MATCH, 404 rc=1, refused
+                     rc=2, logs 0 problems, server-edge 17/17. Not yet run on the VMs.
