@@ -433,7 +433,7 @@ request bodies.
 | # | Decision | Recommendation (reason) | Decision log |
 |---|---|---|---|
 | D1 | Language | **Python 3.10.** `struct` packing, no build step, fastest debugging, easiest viva | Adopted: Python 3.10 (SPEC §14) |
-| D2 | Hypervisor/NIC | **VirtualBox + e1000** (UTM on Apple Silicon), Ubuntu 22.04 server, linked clones | Adopted |
+| D2 | Hypervisor/NIC | **VirtualBox + e1000**, Ubuntu Server 24.04 arm64 (22.04 arm64 does not boot in VirtualBox on Apple Silicon; handout allows later releases), linked clones | Adopted (changed 2026-10-11) |
 | D3 | Client routes | **Default via r1** (conventional host setup) | Adopted (SPEC NET-3) |
 | D4 | r2 LAN A routes | **/24 via r1 + 10.10.1.10/32 via Link D** (only the client deviates) | Adopted (SPEC NET-3) |
 | D5 | rp_filter | **2 on client IF_D and r2 IF_B only**; per-interface keys, `conf.all` untouched | Adopted (SPEC NET-5) |

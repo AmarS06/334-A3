@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# usage: sudo bash fairness.sh OUR_URL[,OUR_URL2...] STD_URL [N] [M]
+# usage: sudo [A3_CLIENT=…/run-client] bash fairness.sh OUR_URL[,OUR_URL2...] STD_URL [N] [M]
 set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 OUR=${1:?OUR_URL(s)}; STD=${2:?STD_URL}; N=${3:-1}; M=${4:-1}
 IFS=, read -ra OURS <<< "$OUR"; T=$(mktemp -d)
 for i in $(seq 1 "$N"); do u=${OURS[$(( (i-1) % ${#OURS[@]} ))]}
-  ( s=$(date +%s.%N); "$ROOT/client/run-client" "$u" -o "$T/our$i" 2>/dev/null; rc=$?; e=$(date +%s.%N)
+  ( s=$(date +%s.%N); "${A3_CLIENT:-$ROOT/client/run-client}" "$u" -o "$T/our$i" 2>/dev/null; rc=$?; e=$(date +%s.%N)
     echo "ours#$i rc=$rc $(stat -c%s "$T/our$i" 2>/dev/null || echo 0) $s $e" > "$T/r.our$i" ) &
 done
 for i in $(seq 1 "$M"); do
